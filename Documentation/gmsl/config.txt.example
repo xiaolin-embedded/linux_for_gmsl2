@@ -1,0 +1,6 @@
+# RPi 5 + MAX96724 + SG2-IMX390C-5200-GMSL2
+camera_auto_detect=0
+dtoverlay=max96724-imx390
+
+# If the camera is connected to CAM/DISP0 instead of CAM/DISP1:
+#dtoverlay=max96724-imx390,cam0
