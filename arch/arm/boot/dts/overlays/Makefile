@@ -390,7 +390,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	wittypi.dtbo \
 	wm8960-soundcard.dtbo \
 	ws2812-pio.dtbo \
-	z_xcdes40_sg2_imx390c_5200_gmsl2.dtbo
+	max96724-imx390.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)

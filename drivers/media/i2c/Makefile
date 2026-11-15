@@ -178,4 +178,4 @@ obj-$(CONFIG_VIDEO_VPX3220) += vpx3220.o
 obj-$(CONFIG_VIDEO_WM8739) += wm8739.o
 obj-$(CONFIG_VIDEO_WM8775) += wm8775.o
 
-obj-m += z_xcdes40_sg2_imx390c_5200_gmsl2.o
+obj-m += max96724_imx390.o

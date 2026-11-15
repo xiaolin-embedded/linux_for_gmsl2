@@ -1,4 +1,4 @@
-// zuojisi
+// MAX96724 + MAX9295A + IMX390 GMSL2 camera
 /dts-v1/;
 /plugin/;
 
@@ -37,7 +37,7 @@
 			status = "okay";
 
 			cam_node: imx390@36 {
-				compatible = "zuojisi,z_xcdes40_sg2_imx390c_5200_gmsl2";
+				compatible = "zuojisi,max96724-imx390";
 				reg = <0x36>;
 				status = "ok";
 
@@ -48,8 +48,6 @@
 				VDIG-supply = <&cam_dummy_reg>;	/* 1.8v */
 				VDDL-supply = <&cam_dummy_reg>;	/* 1.2v */
 
-				rotation = <180>;
-				orientation = <2>;
 
 				port {
 					cam_endpoint: endpoint {
@@ -106,8 +104,6 @@
 	};
 
 	__overrides__ {
-		rotation = <&cam_node>,"rotation:0";
-		orientation = <&cam_node>,"orientation:0";
 		media-controller = <&csi>,"brcm,media-controller?";
 		cam0 = <&i2c_frag>, "target:0=",<&i2c_vc>,
 		       <&csi_frag>, "target:0=",<&csi0>,
