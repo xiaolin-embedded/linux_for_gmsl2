@@ -1,0 +1,42 @@
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target = <&i2c1>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@1 {
+		target = <&spi0>;
+		__overlay__ {
+			status = "okay";
+		};
+	};
+	fragment@2 {
+		target-path = "/";
+		__overlay__ {
+			gpio_ir: ir-receiver@d {
+				compatible = "gpio-ir-receiver";
+
+				gpios = <&gpio 13 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
+
+				// parameter for keymap name
+				linux,rc-map-name = "rc-rc6-mce";
+
+				status = "okay";
+			};
+		};
+	};
+	__overrides__ {
+		ir = <&gpio_ir>,"status";
+		ir_pins =
+			<&gpio_ir>,"gpios:4",
+			<&gpio_ir>,"reg:0";
+	};
+};

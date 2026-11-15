@@ -1,0 +1,29 @@
+// Definitions for w1-gpio module (with external pullup)
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+
+/ {
+	compatible = "brcm,bcm2835";
+
+	fragment@0 {
+		target-path = "/";
+		__overlay__ {
+
+			w1: onewire@0 {
+				compatible = "w1-gpio";
+				gpios = <&gpio 4 (GPIO_ACTIVE_HIGH | GPIO_PULL_DISABLE)>,
+					<&gpio 5 (GPIO_ACTIVE_LOW | GPIO_PULL_DISABLE)>;
+				status = "okay";
+			};
+		};
+	};
+
+	__overrides__ {
+		gpiopin =       <&w1>,"gpios:4",
+				<&w1>,"reg:0";
+		extpullup =     <&w1>,"gpios:16";
+		pullup;		// Silently ignore unneeded parameter
+	};
+};
