@@ -14,6 +14,12 @@
 	compatible = "raspberrypi,5-model-b", "brcm,bcm2712";
 	model = "Raspberry Pi 5";
 
+	zuojisi{
+		zbranch: branch{
+			label = "xc_cameras 20250309\n";
+		};
+	};
+
 	/* Will be filled by the bootloader */
 	memory@0 {
 		device_type = "memory";

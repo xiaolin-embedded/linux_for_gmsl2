@@ -389,7 +389,21 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	wifimac.dtbo \
 	wittypi.dtbo \
 	wm8960-soundcard.dtbo \
-	ws2812-pio.dtbo
+	ws2812-pio.dtbo \
+	z_xcdes17_xcser17_ov5647.dtbo \
+	z_xcdes40_sg2_imx390c_5200_gmsl2.dtbo \
+	z_xcdes40_xcser17_ov5647.dtbo \
+	z_xcdes40_xcser17_ov5640.dtbo \
+	z_xcdes40_VTB3V10A.dtbo \
+	z_xcdes40_ox01fc10_96715.dtbo \
+	z_xcdes30_xcconv11_xcser17_ov5640.dtbo \
+	z_xcdes30_xcconv11_ox03j10_96717f.dtbo \
+	z_xcdes40_sg8_ar0820c_5300_gmsl2.dtbo \
+	z_xcdes40_xcser17_imx219.dtbo \
+	z_xcdes17_sg5_imx490c_5300_gmsl2.dtbo \
+	z_xcdes17_sg2_imx390c_5200_gmsl2.dtbo \
+	z_xcdes40_sg5_imx490c_5300_gmsl2.dtbo \
+	z_xcdes17_xcser17_ov5640-96717.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)

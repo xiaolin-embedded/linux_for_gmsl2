@@ -150,8 +150,14 @@ static const struct node_description node_desc[NUM_NODES] = {
 	 * only meta capture.
 	 */
 	[CSI2_CH1] = {
+#if 0//use rpicam
 		.name = "embedded",
 		.caps = V4L2_CAP_META_CAPTURE,
+
+#else
+		.name = "csi2_ch1",
+		.caps = V4L2_CAP_VIDEO_CAPTURE,
+#endif
 		.pad_flags = MEDIA_PAD_FL_SINK | MEDIA_PAD_FL_MUST_CONNECT,
 		.link_pad = CSI2_NUM_CHANNELS + 1
 	},
