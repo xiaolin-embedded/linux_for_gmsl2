@@ -8,6 +8,8 @@ SG2-IMX390C-5200-GMSL2 相机。
 
 - `master`（默认）：只保留 SG2-IMX390C-5200-GMSL2 一路相机，包含驱动、
   overlay、抓图脚本和本文档。后续新增相机模组直接在此分支追加提交。
+- `max96724-framework`：Phase 1 分层重构分支（当前分支）。模块名、
+  compatible、overlay、寄存器序列与 master 保持一致，等待上板 golden test。
 - `vendor-full-port`：厂商 14 个 `z_xcdes*` 驱动的完整移植版本，保留作参考；
   本次 IMX390 最小版本不依赖它。
 
@@ -23,7 +25,12 @@ SG2-IMX390C-5200-GMSL2 相机。
 ## 关键文件
 
 ```text
-drivers/media/i2c/max96724_imx390.c
+drivers/media/i2c/gmsl-core.c/.h
+drivers/media/i2c/gmsl-v4l2.c
+drivers/media/i2c/gmsl-max96724.c/.h
+drivers/media/i2c/gmsl-max9295.c/.h
+drivers/media/i2c/gmsl-imx390.c/.h
+drivers/media/i2c/gmsl-desc.c/.h
 arch/arm/boot/dts/overlays/max96724-imx390-overlay.dts
 tools/gmsl/gmsl-capture.sh
 Documentation/gmsl/CHANGELOG.md
@@ -31,6 +38,22 @@ Documentation/gmsl/patches/rpi-6.18.y-max96724-imx390.patch
 Documentation/gmsl/patches/rpi-6.18.y-max96724-imx390.diff
 Documentation/gmsl/config.txt.example
 ```
+
+## 分层结构（max96724-framework）
+
+- `gmsl-core.c/.h`：`gmsl_dev`/`gmsl_link` 状态、I2C 地址切换与重试、
+  `gmsl_load_regs`、deser/ser/sensor ops 调度、descriptor 初始化。
+- `gmsl-v4l2.c`：4-pad V4L2 subdev，fmt/frame_desc/mbus_config/s_stream；
+  对 CFE 暴露的仍然是同一个 `max96724_imx390` sensor entity。
+- `gmsl-max96724.c/.h`：MAX96724 解串器 ops（reset/link lock/pipe/VC）。
+- `gmsl-max9295.c/.h`：MAX9295A 串行器 ops（地址、link、GPIO frame sync）。
+- `gmsl-imx390.c/.h`：IMX390 sensor ops（init/start/stop/fmt/mbus）。
+- `gmsl-desc.c/.h`：sensor descriptor 表；新增模组先加 desc + ops + DT。
+
+Phase 1 只做结构拆分，模块名 `max96724_imx390.ko`、compatible
+`zuojisi,max96724-imx390`、overlay、config.txt 和寄存器序列保持不变。
+`W=1` 编译已通过；上板 golden test 尚未执行，板子仍运行 master 的单体驱动，
+部署/重启需要单独确认。
 
 ## 构建
 

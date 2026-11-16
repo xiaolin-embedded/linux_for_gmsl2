@@ -1,5 +1,35 @@
 # 修改记录
 
+## 2026-11-17
+
+### Phase 1：GMSL 分层框架
+
+将单体 `max96724_imx390.c` 拆分为“V4L2 适配层 + core + 每芯片 ops + desc”：
+
+- `gmsl-core.c/.h`：`gmsl_dev`/`gmsl_link`、I2C 地址切换/重试、
+  `gmsl_load_regs`、deser/ser/sensor ops 调度、descriptor 初始化。
+- `gmsl-v4l2.c`：4-pad V4L2 subdev，fmt/frame_desc/mbus_config/s_stream。
+- `gmsl-max96724.c/.h`：MAX96724 ops（reset/link lock/monopolize/pipe/VC/
+  enable pipes）。
+- `gmsl-max9295.c/.h`：MAX9295A ops（地址、link、GPIO frame sync）。
+- `gmsl-imx390.c/.h`：IMX390 sensor ops（init/start/stop/fmt/mbus）。
+- `gmsl-desc.c/.h`：sensor descriptor 表。
+
+保持不变：
+
+- 模块名 `max96724_imx390.ko`（复合模块，源文件已拆分）
+- compatible `zuojisi,max96724-imx390`
+- overlay、config.txt、`gmsl_links` sysfs
+- 所有寄存器序列、延时、link lock/VC 映射和 30fps 行为
+
+验证：
+
+- `W=1` 编译通过，拆分文件无新增 warning。
+- 上板 golden test 尚未执行：部署/重启步骤被取消，板子仍运行 master 的
+  单体驱动；部署前需要单独确认。
+- 新模块产物：
+  `rpi-6.18/framework-build/drivers/media/i2c/max96724_imx390.ko`。
+
 ## 2026-11-15
 
 ### 1. 背景与基线
