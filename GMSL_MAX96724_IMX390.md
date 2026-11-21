@@ -29,6 +29,7 @@ drivers/media/i2c/gmsl-max96724.c/.h
 drivers/media/i2c/gmsl-max9295.c/.h
 drivers/media/i2c/gmsl-imx390.c/.h
 drivers/media/i2c/gmsl-desc.c/.h
+drivers/media/platform/raspberrypi/rp1_cfe/cfe.c
 arch/arm/boot/dts/overlays/max96724-imx390-overlay.dts
 tools/gmsl/gmsl-capture.sh
 tools/gmsl/gmsl-reg.c
@@ -42,9 +43,13 @@ Documentation/gmsl/config.txt.example
 ## 分层结构
 
 - `gmsl-core.c/.h`：`gmsl_dev`/`gmsl_link` 状态、I2C 地址切换与重试、
-  `gmsl_load_regs`、deser/ser/sensor ops 调度、descriptor 初始化。
-- `gmsl-v4l2.c`：4-pad V4L2 subdev，fmt/frame_desc/mbus_config/s_stream；
-  对 CFE 暴露的仍然是同一个 `max96724_imx390` sensor entity。
+  `gmsl_load_regs`、deser/ser/sensor ops 调度、`streaming_mask` 和逐 link
+  启停；单 link 失败隔离。
+- `gmsl-v4l2.c`：4-pad V4L2 subdev，fmt/frame_desc/mbus_config、
+  legacy `s_stream` 和 per-pad `enable_streams/disable_streams`；对 CFE
+  暴露的仍然是同一个 `max96724_imx390` sensor entity。
+- `rp1_cfe/cfe.c`：csi2 直通路径按通道调用 sensor pad streams，首个通道
+  打开 CSI RX、最后一个通道关闭。
 - `gmsl-max96724.c/.h`：MAX96724 解串器 ops（reset/link lock/pipe/VC）。
 - `gmsl-max9295.c/.h`：MAX9295A 串行器 ops（地址、link、GPIO frame sync）。
 - `gmsl-imx390.c/.h`：IMX390 sensor ops（init/start/stop/fmt/mbus）。
@@ -52,13 +57,15 @@ Documentation/gmsl/config.txt.example
   desc + ops + DT。
 
 Phase 1 完成 core/ops/desc 分层；Phase 2 完成 board/link/sensor 描述符拆分、
-稀疏 link 映射和 per-link 格式。模块名 `max96724_imx390.ko`、compatible
-`zuojisi,max96724-imx390`、overlay、config.txt 和寄存器序列保持不变。
-`W=1` 编译已通过；上板 golden test 已通过：
+稀疏 link 映射和 per-link 格式；P0 完成 per-link streaming 控制。模块名
+`max96724_imx390.ko`、compatible `zuojisi,max96724-imx390`、overlay、
+config.txt 和寄存器序列保持不变。`W=1` 编译已通过；单 link 上板 golden
+test 已通过：
 
 - Link A 锁定，`gmsl_links = 1 0 0 0`
 - CFE 使用 912 Mbps
-- 120 帧 1920x1080 UYVY，约 28–29 fps
+- 120 帧 + 二次重启 60 帧，1920x1080 UYVY，约 28–29 fps
+- dmesg：`enable streams pad=0` / `disable streams pad=0`
 - 无 `error: slave`
 - `gmsl-capture.sh -r` 生成的正立 PNG 正常
 
@@ -193,11 +200,24 @@ V min=74 max=179 mean=124.51
 png: gmsl-test.png (rotated 180)
 ```
 
-- 1920x1080 UYVY，约 28 fps
+- 1920x1080 UYVY，约 28–29 fps
 - CFE link rate：`Using a link rate of 912 Mbps`
 - 无 `error: slave` 日志
 - `get_fmt` 日志数量 0
 - `-r` 输出已确认正立
+
+P0 per-link streaming 实测（单相机）：
+
+```text
+enable streams pad=0
+120 frames, 912 Mbps, ~29 fps
+enable streams pad=0   # 二次启动
+disable streams pad=0
+```
+
+- 只启动实际有效的 Link A，未对 B/C/D 发 sensor start；
+- 停止后再次启动正常；
+- 4 路 mixed-link 独立启停逻辑已实现，但当前只有一颗相机，尚未做四路硬件矩阵测试。
 
 ## 已知限制
 
@@ -208,8 +228,8 @@ png: gmsl-test.png (rotated 180)
 - 相机模组物理安装是 180° 倒置的；overlay 不再保留无效的
   `rotation`/`orientation` 属性。需要正立画面时用 `gmsl-capture.sh -r`，
   或在应用里做 `hflip+vflip`。
-- 驱动是 SG2-IMX390C-5200-GMSL2 专用单体驱动，分辨率/格式/30fps 和寄存器
-  序列硬编码；不是通用 V4L2 sensor/serializer 驱动。
+- 当前 board desc 只配置 SG2-IMX390C-5200-GMSL2 一路相机，分辨率/格式/30fps
+  和寄存器序列仍按该模组硬编码；新增模组需要增加 desc/ops/DT。
 - 没有实现曝光/增益/翻转等 V4L2 控制，模组 AE 自动工作。
 - SG2-IMX390C 的 IMX390 位于 GW5200 ISP 之后，默认不能通过 GMSL I2C 直接
   读写 sensor 寄存器；可访问 ISP `0x6d`，sensor 直读需要 ISP 厂商提供
@@ -217,6 +237,9 @@ png: gmsl-test.png (rotated 180)
 - serializer 的 0x007b~0x00ab 寄存器组在 Link A 上回读仍是默认值
   （0x10/0x00），说明这组写在该模组上可能是只读/保留的；实际视频路由由
   MAX96724 的 pipe/VC 寄存器和 serializer 的 0x0318/0x0311/0x0331 完成。
+- 多路 link 的独立启停已实现并编译通过，但只完成了 Link A 单相机实测；
+  4 路同时出流、单路停止/重启和缺失 link 的错误隔离需要四相机板验证。
+- FE（frontend）路径目前仍走 legacy `s_stream`，暂不支持按 pad 独立停流。
 - 手动安装单独编译的模块时可能出现
   `no symbol version for module_layout`；完整 `make modules` 构建不会出现。
 

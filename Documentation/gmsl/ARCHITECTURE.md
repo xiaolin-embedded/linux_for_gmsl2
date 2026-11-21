@@ -1,9 +1,9 @@
 # GMSL Camera Framework Design
 
-> 状态：Phase 1（core/ops/desc 分层）和 Phase 2（board/link/sensor 描述符拆分、
-> per-link 格式、稀疏 link 映射）已实现，并在 RPi 5 + MAX96724 + MAX9295A +
-> SG2-IMX390C 上通过 golden test。本文描述的是**目标框架**；与 SIPL/AIS 对齐的
-> 部分仍按 Roadmap 分阶段补齐。
+> 状态：Phase 1（core/ops/desc 分层）、Phase 2（board/link/sensor 描述符拆分、
+> per-link 格式、稀疏 link 映射）和 P0 per-link streaming 控制已实现。Link A
+> 单相机 golden test 通过；4 路 mixed-link 硬件测试仍待补。本文描述的是
+> **目标框架**；与 SIPL/AIS 对齐的部分仍按 Roadmap 分阶段补齐。
 
 ## 1. 目标与非目标
 
@@ -23,8 +23,8 @@
 
 - 不在内核里实现一个用户态 camera server（SIPL/AIS 的 server 部分放在用户态）。
 - 不追求一次性支持所有 GMSL 芯片；先覆盖 MAX96724 + MAX9295A/MAX96717。
-- 当前不引入 V4L2 streams API 的完整路由；先保持 legacy `s_stream` 和
-  4-pad 模型，后续再演进。
+- 当前不引入 V4L2 streams API 的完整 routing；使用非 `FL_STREAMS` 的
+  pad `enable_streams/disable_streams`，并保留 legacy `s_stream` 兼容路径。
 
 ## 2. 术语与拓扑
 
@@ -234,24 +234,31 @@ board power on
   -> register 4-pad V4L2 subdev
 ```
 
-失败处理：单 link 失败只标记该 link down，不阻止其它 link probe；当前 Phase 1
-仍然是“任一 serializer 失败则整体 probe 失败”，这是后续要改的。
+失败处理：单 link 失败只标记该 link down，不阻止其它 link probe。serializer
+probe/configure、sensor init 失败都会清除对应 lock bit；只有 deser 全局初始
+化失败才整体 probe 失败。
 
 ### 6.2 Stream
 
 ```text
-s_stream(pad, on):
-  sensor start -> serializer enable -> deser pipe enable -> CSI output
-s_stream(pad, off):
-  CSI stop -> deser pipe disable -> serializer disable -> sensor stop
+enable_streams(pad, on):
+  sensor start -> serializer configure -> deser pipe enable -> CSI output
+disable_streams(pad, off):
+  CSI stop -> deser pipe disable -> serializer stop -> sensor stop
 ```
 
-目标：**按 pad/link 独立开关**，而不是现在“任一 pad 开流就启动所有 locked link”。
-实现路径：
+已实现**按 pad/link 独立开关**：
 
-- Phase 2：core 的 `s_stream` 接受 link mask；V4L2 层从 pad 推导 link；
-- Phase 3：如果 CFE/上游需要，升级到 `V4L2_SUBDEV_FL_STREAMS` +
-  `enable_streams/disable_streams` + routing。
+- core `gmsl_core_s_stream(gmsl, link_mask, on)` 只启停 mask 内的 link，
+  维护 `streaming_mask`，并只对本次新启的 link 做 frame sync；
+- V4L2 提供 pad `enable_streams/disable_streams`（非 `FL_STREAMS`，每个 pad
+  视为 stream 0），同时保留 legacy `s_stream` 兼容路径；
+- CFE 的 csi2 直通路径按 `node->id` 调用 pad streams；首个通道打开 CSI RX，
+  最后一个通道关闭，独立停止某一路不会关闭其他通道；
+- FE 路径暂时仍走 legacy `s_stream`，后续再按 pad 改造。
+
+后续如果上游/CFE 需要完整 routing，再升级到 `V4L2_SUBDEV_FL_STREAMS` +
+routing，不需要改 core 的 link mask 语义。
 
 ### 6.3 Power / PM
 
@@ -367,18 +374,23 @@ s_stream(pad, off):
 
 ## 11. 当前状态与缺口
 
-### 已实现（Phase 1 + Phase 2）
+### 已实现（Phase 1 + Phase 2 + P0 streaming）
 
 - core / v4l2 / max96724 / max9295 / imx390 / desc 分层；
 - `board_desc + link_desc + sensor_desc + ser_ops` 拆分，link 按 index 稀疏映射；
 - per-link `set_fmt`，未使用 pad 继承合法默认格式；
+- core per-link `streaming_mask` 和 `gmsl_core_s_stream(mask)`；
+- serializer/sensor 单 link 失败隔离，不阻止其他 link probe；
+- V4L2 pad `enable_streams/disable_streams`，legacy `s_stream` 兼容；
+- CFE csi2 直通路径按通道启停 sensor，CSI RX 首开/末关；
 - 4-pad V4L2 subdev、frame_desc、mbus_config、runtime PM；
 - I2C 地址切换、3 次重试、quiet probe；
 - `alloc_parse` link freq + `get_mbus_config`，CFE 912 Mbps；
 - 模块名/compatible/overlay/config 不变；
-- `W=1` 编译通过；Phase 1/2 上板 golden test 均通过：
-  Link A、912 Mbps、1920x1080 UYVY、约 28–29 fps、无 I2C 错误；
-  Phase 2 测试 120 帧，画面正立清晰。
+- `W=1` 编译通过；Phase 1/2 上板 golden test 均通过；
+- P0 单 link 测试：Link A、912 Mbps、120 帧 + 二次重启 60 帧、
+  约 28–29 fps、无 I2C 错误、画面正立清晰；
+- 4 路 mixed-link 硬件测试待补。
 
 ### 待完善（按优先级）
 
@@ -386,7 +398,8 @@ s_stream(pad, off):
 |---|---|---|---|
 | P0 | ser ops 只有 MAX9295A | 96717/96717F 模组不能直接用 | 加 `gmsl-max96717.c` |
 | P0 | 无 AR0820 desc | 第二个模组无法验证 | Phase 2 加 |
-| P0 | `s_stream` 仍启所有 locked link | 不能按 pad 独立控制 | 改为 per-link mask（Phase 3） |
+| P0 | 4 路 mixed-link 未在硬件上验证 | 独立启停/错误隔离缺少实测 | 准备 4 个模组做矩阵测试 |
+| P1 | FE 路径仍用 legacy `s_stream` | FE 模式不能按 pad 独立停流 | 后续 FE 也改 pad streams |
 | P1 | 无 link loss/hot-plug 恢复 | 拔线/复位后不能自动恢复 | 加 delayed work/错误计数 |
 | P1 | 无 per-link 错误计数/debugfs | 现场定位困难 | 加 sysfs/debugfs |
 | P1 | 模组拓扑未建模（IMX390 在 GW5200 ISP 后） | sensor 寄存器不能直读 | 增加 module/ISP desc 和 ISP pass-through |
@@ -402,10 +415,10 @@ s_stream(pad, off):
 
 - **Phase 1（已完成）**：结构分层，行为不变，硬件 golden test 通过。
 - **Phase 2（部分完成）**：`board_desc/link_desc/sensor_desc` 拆分、稀疏 link
-  映射、per-link `set_fmt` 已完成并通过 golden test；剩余 `max96717` ser ops、
-  `ar0820` desc/ops、AR0820 4K 抓图。
-- **Phase 3**：混插 IMX390 + AR0820；per-link `s_stream` mask；link loss/hot-plug
-  恢复；per-link 错误计数/debugfs；抓图 CLI 参数化。
+  映射、per-link `set_fmt`、per-link streaming 已完成并通过 Link A golden
+  test；剩余 `max96717` ser ops、`ar0820` desc/ops、AR0820 4K 抓图。
+- **Phase 3**：4 路 mixed-link 验证；link loss/hot-plug 恢复；per-link
+  错误计数/debugfs；FE pad streams；抓图 CLI 参数化。
 - **Phase 4（可选）**：DT YAML binding；V4L2 streams/routing；V4L2 controls；
   与 mainline `maxim-serdes` 对齐；CI/长跑/故障注入。
 

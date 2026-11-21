@@ -2,6 +2,40 @@
 
 ## 2026-11-21
 
+### P0：多路 link streaming 控制
+
+- core 的 `gmsl_core_s_stream()` 改为接受 `link_mask`，只启停 mask 内且已锁定
+  的 link；新增 `streaming_mask`，重复 enable/disable 不再重复操作已在线 link；
+- 单 link probe/sensor init 失败只清除该 link 的 lock bit，不再让整个 probe
+  失败；
+- V4L2 增加 pad `enable_streams/disable_streams`（非 `FL_STREAMS`，每个 pad
+  视为 stream 0），legacy `s_stream` 保留并按 active/locked link 推导 mask；
+- `rp1_cfe` csi2 直通路径改为按 `node->id` 调 pad streams；首个通道打开 CSI
+  RX，最后一个通道关闭，单路停止不关闭其他通道；
+- MAX96724 pipe enable 改为 mask 语义，停止某一路时写入剩余 link mask；
+- FE 路径仍使用 legacy `s_stream`，不在本次改动范围内。
+
+单 link 实测（Link A，当前只有一颗相机）：
+
+- 120 帧 + 二次重启 60 帧，1920x1080 UYVY，约 28–29 fps；
+- dmesg 为 `enable streams pad=0` / `disable streams pad=0`；
+- 912 Mbps，`error: slave` 计数 0，抓图正立清晰；
+- 未对 B/C/D 发 sensor start；4 路 mixed-link 独立启停和缺失 link 隔离
+  仍需四相机板验证。
+
+变更文件：
+
+```text
+drivers/media/i2c/gmsl-core.c
+drivers/media/i2c/gmsl-core.h
+drivers/media/i2c/gmsl-max96724.c
+drivers/media/i2c/gmsl-v4l2.c
+drivers/media/platform/raspberrypi/rp1_cfe/cfe.c
+Documentation/gmsl/ARCHITECTURE.md
+Documentation/gmsl/CHANGELOG.md
+GMSL_MAX96724_IMX390.md
+```
+
 ### Phase 2：board/link/sensor 描述符拆分
 
 将 Phase 1 的“一个 sensor desc 服务所有 link”改为板级/链路级/传感器级描述符：
