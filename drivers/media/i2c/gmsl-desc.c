@@ -9,6 +9,10 @@
 #include "gmsl-max9295.h"
 #include "gmsl-max96724.h"
 
+/*
+ * DT binding placeholder.  The IMX390 is at 0x21 but sits behind the GW5200
+ * ISP on SG2-IMX390C, so it is not directly visible on the serializer bus.
+ */
 #define IMX390_SENSOR_ADDR	0x36
 
 static const struct gmsl_sensor_desc imx390_desc = {
