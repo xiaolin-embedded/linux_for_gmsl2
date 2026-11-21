@@ -60,6 +60,9 @@ Phase 1 只做结构拆分，模块名 `max96724_imx390.ko`、compatible
 - 无 `error: slave`
 - `gmsl-capture.sh -r` 生成的正立 PNG 正常
 
+完整的 target 设计、SIPL/AIS 对标、验证矩阵和当前 gap 分析见
+[Documentation/gmsl/ARCHITECTURE.md](Documentation/gmsl/ARCHITECTURE.md)。
+
 ## 构建
 
 ```bash
