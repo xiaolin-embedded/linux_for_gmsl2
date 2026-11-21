@@ -2,6 +2,40 @@
 
 ## 2026-11-21
 
+### IMX490 模组支持
+
+新增 SG5-IMX490C 系列支持：
+
+- `gmsl-imx490.c/.h`：2880x1860 UYVY，CSI DT `0x1e`；
+- `max96724_imx490_board`：PHY clock `0x32`，Link A-D 均可挂 IMX490，
+  加串器走 0x91/0xbf/0xc8 自动识别；
+- overlay `max96724-imx490`，link-frequencies 456 MHz；
+- `gmsl-capture.sh -s 2880x1860` 可直接抓 IMX490。
+
+编译状态：`W=1` 通过。
+
+上板状态：未通过。相机接 Link A 时，启动日志只出现一次短暂的
+`link lock status=0x01`，随后 serializer（0x40/0x41）、ISP（0x6d）、EEPROM
+（0x51）全部无 ACK；I2C 扫描只有解串器 0x27。已排除驱动匹配问题，判断为
+相机侧 POC/12V、FAKRA 线缆或模组问题，等待硬件恢复后继续 2880x1860 抓图。
+
+变更文件：
+
+```text
+drivers/media/i2c/gmsl-imx490.c
+drivers/media/i2c/gmsl-imx490.h
+drivers/media/i2c/gmsl-core.h
+drivers/media/i2c/gmsl-max96724.c
+drivers/media/i2c/gmsl-desc.c
+drivers/media/i2c/gmsl-desc.h
+drivers/media/i2c/gmsl-v4l2.c
+drivers/media/i2c/Makefile
+arch/arm/boot/dts/overlays/Makefile
+arch/arm/boot/dts/overlays/max96724-imx490-overlay.dts
+GMSL_MAX96724_IMX390.md
+Documentation/gmsl/CHANGELOG.md
+```
+
 ### AR0820 模组支持
 
 新增 SG8-AR0820C 相机支持：

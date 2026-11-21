@@ -27,6 +27,7 @@ SG8-AR0820C 两种相机模组。
 |---|---|---|---|---|---|
 | SG2-IMX390C-5200-GMSL2 | IMX390 | GW5200 | MAX9295A | 1920x1080 UYVY | `max96724-imx390` |
 | SG8-AR0820C-5300/5200-G2A | AR0820 | GW5300/5200 | MAX9295A（实测 0x91；96717F 自动识别） | 3840x2160 UYVY | `max96724-ar0820` |
+| SG5-IMX490C-5300/5400-G2A | IMX490 | GW5300/5400 | 自动识别（0x91/0xbf/0xc8） | 2880x1860 UYVY | `max96724-imx490` |
 
 加串器支持运行时自动识别：MAX9295A (`0x91`)、MAX96717 (`0xbf`)、
 MAX96717F (`0xc8`)。因此同一 overlay 也可用于 96717/96717F 版本的模组。
@@ -43,10 +44,12 @@ drivers/media/i2c/gmsl-max96717.c/.h
 drivers/media/i2c/gmsl-ser-auto.c/.h
 drivers/media/i2c/gmsl-imx390.c/.h
 drivers/media/i2c/gmsl-ar0820.c/.h
+drivers/media/i2c/gmsl-imx490.c/.h
 drivers/media/i2c/gmsl-desc.c/.h
 drivers/media/platform/raspberrypi/rp1_cfe/cfe.c
 arch/arm/boot/dts/overlays/max96724-imx390-overlay.dts
 arch/arm/boot/dts/overlays/max96724-ar0820-overlay.dts
+arch/arm/boot/dts/overlays/max96724-imx490-overlay.dts
 tools/gmsl/gmsl-capture.sh
 tools/gmsl/gmsl-reg.c
 tools/gmsl/README.md
@@ -125,6 +128,9 @@ dtoverlay=max96724-imx390
 
 # 或 SG8-AR0820C
 # dtoverlay=max96724-ar0820
+
+# 或 SG5-IMX490C
+# dtoverlay=max96724-imx490
 ```
 
 如果相机接在 CAM/DISP0，加上 `,cam0`：
@@ -162,6 +168,10 @@ max96724-imx390: probe success!
 # SG8-AR0820C：指定 4K 分辨率
 ./tools/gmsl/gmsl-capture.sh -s 3840x2160 -n 30 \
   -o /home/zaiwei/ar0820.raw -p /home/zaiwei/ar0820.png -r
+
+# SG5-IMX490C：指定 2880x1860
+./tools/gmsl/gmsl-capture.sh -s 2880x1860 -n 30 \
+  -o /home/zaiwei/imx490.raw -p /home/zaiwei/imx490.png -r
 
 # 指定 Link / 帧数 / 输出
 ./tools/gmsl/gmsl-capture.sh -l 0 -n 120 \
@@ -291,6 +301,9 @@ CFE link rate: 1600 Mbps
   4 路同时出流、单路停止/重启和缺失 link 的错误隔离需要四相机板验证。
 - AR0820 4K 单次冷启动抓图通过，但停止后第二次启动只收到约 4 个 buffer；
   CFE/DMA 的 4K stop/start 重启路径仍需修复，期间可用单次抓图或保持连续流。
+- IMX490 驱动/overlay 已编译并部署，但当前硬件上 Link A 只短暂 locked，
+  serializer/ISP/EEPROM 均无 ACK；判断为相机侧供电、POC 或模组/线缆问题，
+  尚未完成出图验证。
 - FE（frontend）路径目前仍走 legacy `s_stream`，暂不支持按 pad 独立停流。
 - 手动安装单独编译的模块时可能出现
   `no symbol version for module_layout`；完整 `make modules` 构建不会出现。
