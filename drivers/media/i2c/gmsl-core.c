@@ -130,6 +130,40 @@ int gmsl_load_regs(struct gmsl_dev *gmsl, u8 addr,
 	return ret;
 }
 
+#define GMSL_GPIO_FRAME_TRIGGER	0x02d3
+
+int gmsl_gpio_frame_sync(struct gmsl_link *link)
+{
+	struct gmsl_dev *gmsl = link->dev;
+	u8 addr = link->ser_addr;
+
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 1, 0xa0);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 3 + 1, 0xa0);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER, 0x00);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 3, 0x00);
+	mdelay(50);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER, 0x10);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 3, 0x10);
+	mdelay(50);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER, 0x00);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 3, 0x00);
+	mdelay(50);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER, 0x10);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 3, 0x10);
+	mdelay(50);
+
+	/* receive remote */
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER, 0x04);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 1, 0x6a);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 2, 0x0a);
+
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 3, 0x04);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 3 + 1, 0x6a);
+	gmsl_write_addr(gmsl, addr, GMSL_GPIO_FRAME_TRIGGER + 3 + 2, 0x0a);
+
+	return 0;
+}
+
 static void gmsl_fmt_from_desc(struct v4l2_mbus_framefmt *fmt,
 			       const struct gmsl_sensor_desc *desc)
 {

@@ -6,5 +6,6 @@
 #include "gmsl-core.h"
 
 extern const struct gmsl_board_desc max96724_imx390_board;
+extern const struct gmsl_board_desc max96724_ar0820_board;
 
 #endif

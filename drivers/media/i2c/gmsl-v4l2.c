@@ -710,12 +710,14 @@ static const struct dev_pm_ops gmsl_camera_pm_ops = {
 
 static const struct i2c_device_id gmsl_camera_id[] = {
 	{ "max96724_imx390", (kernel_ulong_t)&max96724_imx390_board },
+	{ "max96724_ar0820", (kernel_ulong_t)&max96724_ar0820_board },
 	{},
 };
 MODULE_DEVICE_TABLE(i2c, gmsl_camera_id);
 
 static const struct of_device_id gmsl_camera_dt_ids[] = {
 	{ .compatible = "zuojisi,max96724-imx390", .data = &max96724_imx390_board },
+	{ .compatible = "zuojisi,max96724-ar0820", .data = &max96724_ar0820_board },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, gmsl_camera_dt_ids);
@@ -733,5 +735,5 @@ static struct i2c_driver gmsl_camera_i2c_driver = {
 
 module_i2c_driver(gmsl_camera_i2c_driver);
 
-MODULE_DESCRIPTION("MAX96724 + MAX9295A + IMX390 GMSL2 layered camera driver");
+MODULE_DESCRIPTION("MAX96724 + MAX9295A GMSL2 camera driver (IMX390/AR0820)");
 MODULE_LICENSE("GPL");

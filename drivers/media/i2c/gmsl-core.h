@@ -111,6 +111,7 @@ int gmsl_mod_reg_addr(struct gmsl_dev *gmsl, u8 addr, u16 reg, u8 mask,
 		      u8 val);
 int gmsl_load_regs(struct gmsl_dev *gmsl, u8 addr,
 		   const struct gmsl_reg_value *regs, unsigned int regnum);
+int gmsl_gpio_frame_sync(struct gmsl_link *link);
 
 int gmsl_core_set_board(struct gmsl_dev *gmsl,
 			const struct gmsl_board_desc *board);
