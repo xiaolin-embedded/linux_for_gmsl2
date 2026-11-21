@@ -52,8 +52,13 @@ Documentation/gmsl/config.txt.example
 
 Phase 1 只做结构拆分，模块名 `max96724_imx390.ko`、compatible
 `zuojisi,max96724-imx390`、overlay、config.txt 和寄存器序列保持不变。
-`W=1` 编译已通过；上板 golden test 尚未执行，板子仍运行 master 的单体驱动，
-部署/重启需要单独确认。
+`W=1` 编译已通过；上板 golden test 已通过：
+
+- Link A 锁定，`gmsl_links = 1 0 0 0`
+- CFE 使用 912 Mbps
+- 60 帧 1920x1080 UYVY，约 29.95 fps
+- 无 `error: slave`
+- `gmsl-capture.sh -r` 生成的正立 PNG 正常
 
 ## 构建
 

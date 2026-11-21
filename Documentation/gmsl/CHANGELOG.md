@@ -25,8 +25,13 @@
 验证：
 
 - `W=1` 编译通过，拆分文件无新增 warning。
-- 上板 golden test 尚未执行：部署/重启步骤被取消，板子仍运行 master 的
-  单体驱动；部署前需要单独确认。
+- 上板 golden test 已通过：
+  - Link A 锁定，`gmsl_links = 1 0 0 0`
+  - CFE 使用 912 Mbps
+  - 60 帧 1920x1080 UYVY，约 29.95 fps
+  - 无 `error: slave`
+  - 图像正常（`gmsl-capture.sh -r` 生成的正立 PNG）
+- 测试方式：备份 master 模块后，安装分层模块并重启；boot probe 成功。
 - 新模块产物：
   `rpi-6.18/framework-build/drivers/media/i2c/max96724_imx390.ko`。
 
