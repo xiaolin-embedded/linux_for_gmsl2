@@ -3,8 +3,9 @@
 > 状态：Phase 1（core/ops/desc 分层）、Phase 2（board/link/sensor 描述符拆分、
 > per-link 格式、稀疏 link 映射）、P0 per-link streaming 控制和 AR0820/
 > MAX96717F 支持已实现。IMX390 Link A 单相机 golden test 通过；AR0820 4K
-> 和 4 路 mixed-link 硬件测试仍待补。本文描述的是**目标框架**；与 SIPL/AIS
-> 对齐的部分仍按 Roadmap 分阶段补齐。
+> 单次冷启动抓图通过，但 CFE/DMA 的 4K 重复 start/stop 仍待修；4 路
+> mixed-link 硬件测试仍待补。本文描述的是**目标框架**；与 SIPL/AIS 对齐的
+> 部分仍按 Roadmap 分阶段补齐。
 
 ## 1. 目标与非目标
 
@@ -393,14 +394,15 @@ routing，不需要改 core 的 link mask 语义。
 - `W=1` 编译通过；Phase 1/2 上板 golden test 均通过；
 - P0 单 link 测试：Link A、912 Mbps、120 帧 + 二次重启 60 帧、
   约 28–29 fps、无 I2C 错误、画面正立清晰；
-- AR0820/96717F 代码 `W=1` 编译通过，4K 抓图待上板；
+- AR0820 4K 单次冷启动抓图通过：MAX9295A（0x91）、1600 Mbps、3840x2160
+  UYVY；4K 重复 start/stop 仍卡在 CFE/DMA 重启，待修；
 - 4 路 mixed-link 硬件测试待补。
 
 ### 待完善（按优先级）
 
 | 优先级 | 缺口 | 影响 | 建议 |
 |---|---|---|---|
-| P0 | AR0820 4K 链路率/帧率未上板验证 | 不确定 912 Mbps 是否满足 4K30 | 用 4K 抓图确认，必要时调 link freq |
+| P0 | AR0820 4K 停止后第二次启动只收约 4 个 buffer | 4K 不能连续 start/stop | 修 CFE/DMA 4K 重启路径 |
 | P0 | 4 路 mixed-link 未在硬件上验证 | 独立启停/错误隔离缺少实测 | 准备 4 个模组做矩阵测试 |
 | P1 | FE 路径仍用 legacy `s_stream` | FE 模式不能按 pad 独立停流 | 后续 FE 也改 pad streams |
 | P1 | 无 link loss/hot-plug 恢复 | 拔线/复位后不能自动恢复 | 加 delayed work/错误计数 |
@@ -420,8 +422,9 @@ routing，不需要改 core 的 link mask 语义。
 - **Phase 2（基本完成）**：`board_desc/link_desc/sensor_desc` 拆分、稀疏 link
   映射、per-link `set_fmt/streaming`、`max96717` ser ops、`ar0820` desc/ops
   已完成并通过编译；剩余 AR0820 4K 上板抓图。
-- **Phase 3**：4 路 mixed-link 验证；link loss/hot-plug 恢复；per-link
-  错误计数/debugfs；FE pad streams；抓图 CLI 已支持 `-s WxH`。
+- **Phase 3**：修 CFE/DMA 的 4K 重复 start/stop；4 路 mixed-link 验证；
+  link loss/hot-plug 恢复；per-link 错误计数/debugfs；FE pad streams；
+  抓图 CLI 已支持 `-s WxH`。
 - **Phase 4（可选）**：DT YAML binding；V4L2 streams/routing；V4L2 controls；
   与 mainline `maxim-serdes` 对齐；CI/长跑/故障注入。
 

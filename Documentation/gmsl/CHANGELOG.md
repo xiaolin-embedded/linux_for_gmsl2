@@ -17,7 +17,17 @@
 （DEV_ID `0x91`），不是 96717F；AR0820 在 GW5300 ISP 后面，host 不直接
 配置 sensor。自动识别仍保留 96717/96717F 路径，便于同系列模组。
 
-状态：`W=1` 编译通过；相机更换/上电后做 4K 抓图验证。
+上板结果（2026-11-21）：
+
+- 实际模组：serializer `0x41` DEV_ID 实测 `0x91`（MAX9295A），EEPROM reg0
+  由 `0x30` 变为 `0x17`；不是 96717F。
+- Link A 锁定，overlay `max96724-ar0820` 使用 800 MHz（D-PHY 1600 Mbps），
+  CFE 日志为 `Using a link rate of 1600 Mbps`。
+- 冷启动后单次 4K 抓图成功：3840x2160 UYVY，10 帧 / 30 帧均能生成 PNG；
+  912 Mbps 下观察到约 25 fps。
+- 已知限制：停止后再次启动，第二次只收到约 4 个 buffer（约 4 帧）就停住。
+  912/1600 Mbps、keep pipe、keep CSI RX、清 `job_queued` 都未解决；判断为
+  CFE/DMA 的 4K stop/start 重启问题，尚需继续修。单次冷启动抓图可用。
 
 变更文件：
 

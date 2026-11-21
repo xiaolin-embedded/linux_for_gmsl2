@@ -26,7 +26,7 @@ SG8-AR0820C 两种相机模组。
 | 模组 | Sensor | ISP | 加串器 | 分辨率 | overlay |
 |---|---|---|---|---|---|
 | SG2-IMX390C-5200-GMSL2 | IMX390 | GW5200 | MAX9295A | 1920x1080 UYVY | `max96724-imx390` |
-| SG8-AR0820C-5300/5200-G2A | AR0820 | GW5300/5200 | MAX9295A（96717F 自动识别） | 3840x2160 UYVY | `max96724-ar0820` |
+| SG8-AR0820C-5300/5200-G2A | AR0820 | GW5300/5200 | MAX9295A（实测 0x91；96717F 自动识别） | 3840x2160 UYVY | `max96724-ar0820` |
 
 加串器支持运行时自动识别：MAX9295A (`0x91`)、MAX96717 (`0xbf`)、
 MAX96717F (`0xc8`)。因此同一 overlay 也可用于 96717/96717F 版本的模组。
@@ -251,6 +251,21 @@ disable streams pad=0
 - 停止后再次启动正常；
 - 4 路 mixed-link 独立启停逻辑已实现，但当前只有一颗相机，尚未做四路硬件矩阵测试。
 
+AR0820 4K 实测（2026-11-21，Link A）：
+
+```text
+serializer @0x41 id=0x91 (MAX9295A)
+EEPROM @0x51 reg0=0x17
+CFE link rate: 1600 Mbps
+3840x2160 UYVY, single cold-boot capture OK
+```
+
+- overlay `max96724-ar0820` 的 `link-frequencies` 已改为 800 MHz；
+- 单次冷启动抓图可以生成 4K PNG，912 Mbps 下约 25 fps；
+- **已知限制**：4K 停止后再次启动，第二次只收到约 4 个 buffer 就停住。
+  keep pipe、keep CSI RX、清 CFE `job_queued` 均未解决；问题定位在 CFE/DMA
+  的 4K stop/start 重启路径，单次抓图/连续流可用，连续 start/stop 待修。
+
 ## 已知限制
 
 - 使用 downstream CFE `rp1_cfe`（DT compatible `raspberrypi,rp1-cfe`），
@@ -274,6 +289,8 @@ disable streams pad=0
   MAX96724 的 pipe/VC 寄存器和 serializer 的 0x0318/0x0311/0x0331 完成。
 - 多路 link 的独立启停已实现并编译通过，但只完成了 Link A 单相机实测；
   4 路同时出流、单路停止/重启和缺失 link 的错误隔离需要四相机板验证。
+- AR0820 4K 单次冷启动抓图通过，但停止后第二次启动只收到约 4 个 buffer；
+  CFE/DMA 的 4K stop/start 重启路径仍需修复，期间可用单次抓图或保持连续流。
 - FE（frontend）路径目前仍走 legacy `s_stream`，暂不支持按 pad 独立停流。
 - 手动安装单独编译的模块时可能出现
   `no symbol version for module_layout`；完整 `make modules` 构建不会出现。
