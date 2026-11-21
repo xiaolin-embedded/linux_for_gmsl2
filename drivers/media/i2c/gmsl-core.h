@@ -77,6 +77,7 @@ struct gmsl_board_desc {
 	const struct gmsl_des_ops *des_ops;
 	unsigned int num_links;
 	const struct gmsl_link_desc *links;
+	u8 phy_clk;
 };
 
 struct gmsl_link {

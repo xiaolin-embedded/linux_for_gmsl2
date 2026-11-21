@@ -58,6 +58,7 @@ static int max96724_init(struct gmsl_dev *gmsl)
 {
 	struct device *dev = gmsl->dev;
 	u8 val = 0;
+	u8 phy_clk;
 
 	max96724_read(gmsl, 0x0000, &val);
 	if (val != 0x4e) {
@@ -105,10 +106,12 @@ static int max96724_init(struct gmsl_dev *gmsl)
 	max96724_write(gmsl, 0x8a4, 0xe4);
 	max96724_write(gmsl, 0x8a0, 0x24);
 
-	max96724_write(gmsl, 0x415, MAX96724_PHY_CLK);
-	max96724_write(gmsl, 0x418, MAX96724_PHY_CLK);
-	max96724_write(gmsl, 0x41b, MAX96724_PHY_CLK);
-	max96724_write(gmsl, 0x41e, MAX96724_PHY_CLK);
+	phy_clk = gmsl->board && gmsl->board->phy_clk ?
+			  gmsl->board->phy_clk : MAX96724_PHY_CLK;
+	max96724_write(gmsl, 0x415, phy_clk);
+	max96724_write(gmsl, 0x418, phy_clk);
+	max96724_write(gmsl, 0x41b, phy_clk);
+	max96724_write(gmsl, 0x41e, phy_clk);
 
 	/* pipe1 GMSL-B, Z-pipe; pipe0 GMSL-A, Z-pipe */
 	max96724_write(gmsl, 0xf0, 0x62);

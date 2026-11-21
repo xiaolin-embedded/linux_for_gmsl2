@@ -7,6 +7,7 @@
 #include "gmsl-core.h"
 #include "gmsl-desc.h"
 #include "gmsl-imx390.h"
+#include "gmsl-imx490.h"
 #include "gmsl-max9295.h"
 #include "gmsl-max96724.h"
 #include "gmsl-ser-auto.h"
@@ -22,6 +23,9 @@
  * ISP on SG8S-AR0820C, so it is not directly visible on the serializer bus.
  */
 #define AR0820_SENSOR_ADDR	0x36
+
+/* DT binding placeholder; IMX490 is behind the module ISP. */
+#define IMX490_SENSOR_ADDR	0x36
 
 static const struct gmsl_sensor_desc imx390_desc = {
 	.compatible = "sony,imx390",
@@ -47,6 +51,22 @@ static const struct gmsl_sensor_desc ar0820_desc = {
 	.mbus_code = MEDIA_BUS_FMT_UYVY8_1X16,
 	.csi_dt = 0x1e,
 	.sensor_ops = &ar0820_sensor_ops,
+	.init = NULL,
+	.init_len = 0,
+	.start = NULL,
+	.start_len = 0,
+	.stop = NULL,
+	.stop_len = 0,
+};
+
+static const struct gmsl_sensor_desc imx490_desc = {
+	.compatible = "sony,imx490",
+	.name = "imx490",
+	.width = 2880,
+	.height = 1860,
+	.mbus_code = MEDIA_BUS_FMT_UYVY8_1X16,
+	.csi_dt = 0x1e,
+	.sensor_ops = &imx490_sensor_ops,
 	.init = NULL,
 	.init_len = 0,
 	.start = NULL,
@@ -89,4 +109,47 @@ const struct gmsl_board_desc max96724_ar0820_board = {
 	.des_ops = &max96724_des_ops,
 	.num_links = ARRAY_SIZE(max96724_ar0820_links),
 	.links = max96724_ar0820_links,
+};
+
+static const struct gmsl_link_desc max96724_imx490_links[] = {
+	{
+		.index = 0,
+		.sensor = &imx490_desc,
+		.ser_ops = &gmsl_ser_auto_ops,
+		.sensor_addr = IMX490_SENSOR_ADDR,
+		.num_lanes = 4,
+		.link_freq = 456000000,
+	},
+	{
+		.index = 1,
+		.sensor = &imx490_desc,
+		.ser_ops = &gmsl_ser_auto_ops,
+		.sensor_addr = IMX490_SENSOR_ADDR,
+		.num_lanes = 4,
+		.link_freq = 456000000,
+	},
+	{
+		.index = 2,
+		.sensor = &imx490_desc,
+		.ser_ops = &gmsl_ser_auto_ops,
+		.sensor_addr = IMX490_SENSOR_ADDR,
+		.num_lanes = 4,
+		.link_freq = 456000000,
+	},
+	{
+		.index = 3,
+		.sensor = &imx490_desc,
+		.ser_ops = &gmsl_ser_auto_ops,
+		.sensor_addr = IMX490_SENSOR_ADDR,
+		.num_lanes = 4,
+		.link_freq = 456000000,
+	},
+};
+
+const struct gmsl_board_desc max96724_imx490_board = {
+	.compatible = "zuojisi,max96724-imx490",
+	.des_ops = &max96724_des_ops,
+	.num_links = ARRAY_SIZE(max96724_imx490_links),
+	.links = max96724_imx490_links,
+	.phy_clk = 0x32,
 };

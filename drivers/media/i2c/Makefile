@@ -180,5 +180,5 @@ obj-$(CONFIG_VIDEO_WM8775) += wm8775.o
 
 max96724_imx390-y := gmsl-core.o gmsl-v4l2.o gmsl-max96724.o \
 		     gmsl-max9295.o gmsl-max96717.o gmsl-ser-auto.o \
-		     gmsl-imx390.o gmsl-ar0820.o gmsl-desc.o
+		     gmsl-imx390.o gmsl-ar0820.o gmsl-imx490.o gmsl-desc.o
 obj-m += max96724_imx390.o
