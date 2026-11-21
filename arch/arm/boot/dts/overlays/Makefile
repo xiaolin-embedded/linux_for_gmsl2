@@ -391,6 +391,7 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	wm8960-soundcard.dtbo \
 	ws2812-pio.dtbo \
 	max96724-ar0820.dtbo \
+	max96724-imx490.dtbo \
 	max96724-imx390.dtbo
 
 targets += dtbs dtbs_install
