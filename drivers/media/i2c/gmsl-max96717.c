@@ -4,6 +4,7 @@
 #include "gmsl-max96717.h"
 
 #define MAX96717_I2C_ADDR		0x40
+#define MAX96717_ALT_I2C_ADDR	0x62
 #define MAX96717_DEV_ID			0xbf
 #define MAX96717F_DEV_ID		0xc8
 
@@ -11,11 +12,22 @@ static int max96717_probe(struct gmsl_link *link)
 {
 	struct gmsl_dev *gmsl = link->dev;
 	u8 id = 0;
+	u8 src = 0;
 	int ret;
 
 	ret = gmsl_read_addr(gmsl, MAX96717_I2C_ADDR, 0x000d, &id, true);
 	if (ret == 0 && (id == MAX96717_DEV_ID || id == MAX96717F_DEV_ID)) {
-		gmsl_write_addr(gmsl, MAX96717_I2C_ADDR, 0x0000,
+		src = MAX96717_I2C_ADDR;
+	} else {
+		ret = gmsl_read_addr(gmsl, MAX96717_ALT_I2C_ADDR, 0x000d,
+				     &id, true);
+		if (ret == 0 &&
+		    (id == MAX96717_DEV_ID || id == MAX96717F_DEV_ID))
+			src = MAX96717_ALT_I2C_ADDR;
+	}
+
+	if (src) {
+		gmsl_write_addr(gmsl, src, 0x0000,
 				(MAX96717_I2C_ADDR + link->index + 1) << 1);
 		mdelay(75);
 	}
@@ -23,14 +35,19 @@ static int max96717_probe(struct gmsl_link *link)
 	link->ser_addr = MAX96717_I2C_ADDR + link->index + 1;
 	mdelay(75);
 
-	ret = gmsl_read_addr(gmsl, link->ser_addr, 0x000d, &id, false);
+	ret = gmsl_read_addr(gmsl, link->ser_addr, 0x000d, &id, true);
+	if (ret && src) {
+		link->ser_addr = src;
+		ret = gmsl_read_addr(gmsl, link->ser_addr, 0x000d, &id, false);
+	}
 	if (ret || (id != MAX96717_DEV_ID && id != MAX96717F_DEV_ID)) {
 		dev_err(gmsl->dev,
 			"max96724-imx390: serializer NOT detected (max96717)\n");
 		return -ENODEV;
 	}
 
-	dev_info(gmsl->dev, "max96724-imx390: serializer detected (max96717)\n");
+	dev_info(gmsl->dev, "max96724-imx390: serializer detected (max96717) at 0x%02x\n",
+		 link->ser_addr);
 	return 0;
 }
 

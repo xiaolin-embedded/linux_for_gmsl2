@@ -6,6 +6,7 @@
 #include "gmsl-ser-auto.h"
 
 #define GMSL_SER_DEFAULT_ADDR	0x40
+#define GMSL_SER_ALT_ADDR	0x62
 
 static int gmsl_ser_auto_select(struct gmsl_link *link,
 				const struct gmsl_ser_ops *ops)
@@ -44,6 +45,13 @@ static int gmsl_ser_auto_probe(struct gmsl_link *link)
 	/* The serializer may already have been moved to 0x41 + link. */
 	ret = gmsl_read_addr(gmsl, GMSL_SER_DEFAULT_ADDR + link->index + 1,
 			     0x000d, &id, true);
+	if (!ret) {
+		ret = gmsl_ser_auto_pick(link, id);
+		if (!ret)
+			return 0;
+	}
+
+	ret = gmsl_read_addr(gmsl, GMSL_SER_ALT_ADDR, 0x000d, &id, true);
 	if (!ret) {
 		ret = gmsl_ser_auto_pick(link, id);
 		if (!ret)
