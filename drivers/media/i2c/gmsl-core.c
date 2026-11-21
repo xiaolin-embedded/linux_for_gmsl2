@@ -352,6 +352,8 @@ int gmsl_core_s_stream(struct gmsl_dev *gmsl, u8 link_mask, bool enable)
 			if (!(changed & BIT(i)))
 				continue;
 			link = &gmsl->links[i];
+			if (!gmsl->board || gmsl->board->skip_frame_sync)
+				continue;
 			if (link->ser_ops && link->ser_ops->gpio_frame_sync) {
 				ret = link->ser_ops->gpio_frame_sync(link);
 				if (ret)

@@ -8,7 +8,8 @@
 #   -n, --frames N     number of frames to capture (default: 60)
 #   -o, --output FILE  raw UYVY output (default: $HOME/gmsl-capture.raw)
 #   -p, --png FILE     last-frame PNG output (default: $HOME/gmsl-capture.png)
-#   -s, --size WxH     capture size (default: 1920x1080; AR0820: 3840x2160)
+#   -s, --size WxH     capture size (default: 1920x1080; ISX031: 1920x1536;
+#                      AR0820: 3840x2160)
 #   -r, --rotate       rotate the PNG 180 degrees
 #   -h, --help         show this help
 
@@ -35,7 +36,7 @@ while [ $# -gt 0 ]; do
 	-p|--png) PNG=$2; shift 2 ;;
 	-s|--size) SIZE=$2; shift 2 ;;
 	-r|--rotate) ROTATE=1; shift ;;
-	-h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+	-h|--help) sed -n '2,14p' "$0"; exit 0 ;;
 	*) die "unknown option: $1" ;;
 	esac
 done

@@ -8,6 +8,7 @@
 #include "gmsl-desc.h"
 #include "gmsl-imx390.h"
 #include "gmsl-imx490.h"
+#include "gmsl-isx031.h"
 #include "gmsl-max9295.h"
 #include "gmsl-max96724.h"
 #include "gmsl-ser-auto.h"
@@ -26,6 +27,9 @@
 
 /* DT binding placeholder; IMX490 is behind the module ISP. */
 #define IMX490_SENSOR_ADDR	0x36
+
+/* ISX031 is directly visible on the serializer pass-through bus. */
+#define ISX031_SENSOR_ADDR	0x1a
 
 static const struct gmsl_sensor_desc imx390_desc = {
 	.compatible = "sony,imx390",
@@ -73,6 +77,16 @@ static const struct gmsl_sensor_desc imx490_desc = {
 	.start_len = 0,
 	.stop = NULL,
 	.stop_len = 0,
+};
+
+static const struct gmsl_sensor_desc isx031_desc = {
+	.compatible = "sony,isx031",
+	.name = "isx031",
+	.width = 1920,
+	.height = 1536,
+	.mbus_code = MEDIA_BUS_FMT_UYVY8_1X16,
+	.csi_dt = 0x1e,
+	.sensor_ops = &isx031_sensor_ops,
 };
 
 static const struct gmsl_link_desc max96724_imx390_links[] = {
@@ -152,4 +166,25 @@ const struct gmsl_board_desc max96724_imx490_board = {
 	.num_links = ARRAY_SIZE(max96724_imx490_links),
 	.links = max96724_imx490_links,
 	.phy_clk = 0x32,
+};
+
+static const struct gmsl_link_desc max96724_isx031_links[] = {
+	{
+		.index = 0,
+		.sensor = &isx031_desc,
+		.ser_ops = &gmsl_ser_auto_ops,
+		.sensor_addr = ISX031_SENSOR_ADDR,
+		.num_lanes = 4,
+		.link_freq = 288000000,
+	},
+};
+
+const struct gmsl_board_desc max96724_isx031_board = {
+	.compatible = "zuojisi,max96724-isx031",
+	.des_ops = &max96724_des_ops,
+	.num_links = ARRAY_SIZE(max96724_isx031_links),
+	.links = max96724_isx031_links,
+	.phy_clk = 0x25,
+	.three_gbps = true,
+	.skip_frame_sync = true,
 };

@@ -80,6 +80,14 @@ static int max96724_init(struct gmsl_dev *gmsl)
 	max96724_write(gmsl, 0x0310, 0x90);
 	max96724_write(gmsl, 0x0309, 0x90); /* turn on LED */
 
+	if (gmsl->board && gmsl->board->three_gbps) {
+		max96724_write(gmsl, 0x0010, 0x11);
+		max96724_write(gmsl, 0x0011, 0x11);
+		max96724_write(gmsl, 0x0006, 0xff);
+		max96724_write(gmsl, 0x0018, 0x0f);
+		mdelay(150);
+	}
+
 	max96724_get_link_lock(gmsl);
 
 	/* Disable links which are not locked. */

@@ -4,7 +4,8 @@
 > per-link 格式、稀疏 link 映射）、P0 per-link streaming 控制和 AR0820/
 > MAX96717F 支持已实现。IMX390 Link A 单相机 golden test 通过；AR0820 4K
 > 单次冷启动抓图通过，但 CFE/DMA 的 4K 重复 start/stop 仍待修；双 IMX490
-> Link A/B 同时抓图已通过，4 路 mixed-link 硬件测试仍待补。本文描述的是
+> Link A/B 同时抓图已通过；ISX031 + MAX96717F 3Gbps（1920x1536，Link A）
+> 已抓图通过，4 路 mixed-link 硬件测试仍待补。本文描述的是
 > **目标框架**；与 SIPL/AIS 对齐的部分仍按 Roadmap 分阶段补齐。
 
 ## 1. 目标与非目标

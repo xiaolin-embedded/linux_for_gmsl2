@@ -78,6 +78,8 @@ struct gmsl_board_desc {
 	unsigned int num_links;
 	const struct gmsl_link_desc *links;
 	u8 phy_clk;
+	bool three_gbps;
+	bool skip_frame_sync;
 };
 
 struct gmsl_link {

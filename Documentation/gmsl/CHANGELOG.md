@@ -2,6 +2,55 @@
 
 ## 2026-11-21
 
+### ISX031 3Gbps 模组支持
+
+新增 SG-3M-190A-AA-031（Sony ISX031 + MAX96717F）支持：
+
+- `gmsl-isx031.c/.h`：1920x1536 UYVY，CSI DT `0x1e`；
+  - MAX96717F pass-through I2C 使能，sensor 7-bit 地址 `0x1a`；
+  - MFP4 输出 24MHz sensor INCK，MFP0 释放 sensor reset；
+  - ISX031 内部同步初始化（`0x8AF0=0`），4-lane 30fps 模式
+    `0x8A00=0x17`，`0x8A01=0x80` 开流；
+- `max96724_isx031_board`：Link A、3Gbps、`phy_clk=0x25`、跳过外部
+  frame-sync GPIO 序列；
+- `gmsl-core` 增加 `three_gbps` 和 `skip_frame_sync` board 标志；
+- `gmsl-max96724` 在 3Gbps 时先写 `0x0010/0x0011=0x11`、打开 link
+  `0x0006=0xff`，再用 `0x0018=0x0f` 触发 oneshot，最后重新读取 lock；
+- overlay `max96724-isx031`，link-frequencies 288 MHz（CFE 576 Mbps）。
+
+调试要点：
+
+- 该模组 link 一直不锁的根因是 MAX96724 默认 6Gbps，而 MAX96717F 最高
+  3Gbps；仅在 3Gbps 且 link enable 打开后 `0x001a` bit3 才置 1。
+- CFE 576 Mbps 下，原 PHY clock `0x30` 无法完成帧；改为 `0x25`
+  （`0x415/0x418/0x41b/0x41e`）后正常出图。
+- sensor 位于 MAX96717F pass-through I2C，probe 时首次访问需要重试；
+  已在 sensor 写入路径加入 5 次重试。
+
+上板结果（2026-11-21，Link A）：
+
+- `gmsl_links=1 0 0 0`，MAX96717F 迁移到 `0x41`，sensor `0x1a` ACK；
+- `0x7DC8` 帧计数持续递增，serializer `0x0112` PCLK=1，
+  deserializer `0x1dc` video_lock=1；
+- 1920x1536 UYVY，30 帧抓图成功；PNG 正常，无丢帧错误。
+
+变更文件：
+
+```text
+drivers/media/i2c/gmsl-isx031.c
+drivers/media/i2c/gmsl-isx031.h
+drivers/media/i2c/gmsl-core.c
+drivers/media/i2c/gmsl-core.h
+drivers/media/i2c/gmsl-desc.c
+drivers/media/i2c/gmsl-desc.h
+drivers/media/i2c/gmsl-max96724.c
+drivers/media/i2c/gmsl-v4l2.c
+drivers/media/i2c/Makefile
+arch/arm/boot/dts/overlays/Makefile
+arch/arm/boot/dts/overlays/max96724-isx031-overlay.dts
+Documentation/gmsl/CHANGELOG.md
+```
+
 ### 双 IMX490 双路验证
 
 两颗 IMX490（serializer 0x41 和 0x62 各一颗）同时接 Link A/B：
