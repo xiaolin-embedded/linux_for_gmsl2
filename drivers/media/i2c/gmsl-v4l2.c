@@ -19,6 +19,7 @@
 #include <media/v4l2-device.h>
 #include <media/v4l2-event.h>
 #include <media/v4l2-fwnode.h>
+#include <media/media-entity.h>
 #include <media/v4l2-subdev.h>
 
 #include "gmsl-core.h"
@@ -308,43 +309,102 @@ static int gmsl_camera_enum_mbus_code(struct v4l2_subdev *sd,
 	return 0;
 }
 
+static u8 gmsl_camera_active_links(struct gmsl_camera *camera)
+{
+	u8 mask = 0;
+	int i;
+
+	for (i = 0; i < GMSL_MAX_LINKS; i++) {
+		if (media_pad_is_streaming(&camera->sd.entity.pads[i]))
+			mask |= BIT(i);
+	}
+
+	return mask;
+}
+
+static int gmsl_camera_stream(struct gmsl_camera *camera, u8 mask, bool enable)
+{
+	struct device *dev = &camera->gmsl.client->dev;
+	int ret = 0;
+
+	if (!mask)
+		return enable ? -EINVAL : 0;
+
+	mutex_lock(&camera->lock);
+
+	if (enable && !camera->gmsl.streaming_mask) {
+		ret = pm_runtime_resume_and_get(dev);
+		if (ret)
+			goto out;
+	}
+
+	ret = gmsl_core_s_stream(&camera->gmsl, mask, enable);
+	if (ret) {
+		if (enable && !camera->gmsl.streaming_mask)
+			pm_runtime_put_autosuspend(dev);
+		goto out;
+	}
+
+	camera->streaming = !!camera->gmsl.streaming_mask;
+	if (!enable && !camera->gmsl.streaming_mask)
+		pm_runtime_put_autosuspend(dev);
+
+out:
+	mutex_unlock(&camera->lock);
+	return ret;
+}
+
 static int gmsl_camera_s_stream(struct v4l2_subdev *sd, int enable)
 {
 	struct gmsl_camera *camera = to_gmsl_camera(sd);
-	int ret = 0;
-
-	dev_info(&camera->gmsl.client->dev,
-		 "max96724-imx390: s stream enable=%d\n", enable);
+	u8 mask;
 
 	if (enable) {
-		ret = pm_runtime_resume_and_get(&camera->gmsl.client->dev);
-		if (ret < 0)
-			return ret;
+		mask = gmsl_camera_active_links(camera);
+		if (!mask)
+			mask = camera->gmsl.link_lock_status;
+		dev_info(&camera->gmsl.client->dev,
+			 "max96724-imx390: s stream enable=1 links=0x%x\n",
+			 mask);
+		return gmsl_camera_stream(camera, mask, true);
 	}
 
-	mutex_lock(&camera->lock);
-	if (camera->streaming == enable) {
-		mutex_unlock(&camera->lock);
-		if (enable)
-			pm_runtime_put_autosuspend(&camera->gmsl.client->dev);
-		return 0;
-	}
+	mask = camera->gmsl.streaming_mask;
+	dev_info(&camera->gmsl.client->dev,
+		 "max96724-imx390: s stream enable=0 links=0x%x\n", mask);
+	return gmsl_camera_stream(camera, mask, false);
+}
 
-	ret = gmsl_core_s_stream(&camera->gmsl, enable);
-	if (ret) {
-		mutex_unlock(&camera->lock);
-		if (enable)
-			pm_runtime_put_autosuspend(&camera->gmsl.client->dev);
-		return ret;
-	}
+static int gmsl_camera_enable_streams(struct v4l2_subdev *sd,
+				      struct v4l2_subdev_state *state,
+				      u32 pad, u64 streams_mask)
+{
+	struct gmsl_camera *camera = to_gmsl_camera(sd);
 
-	camera->streaming = enable;
-	mutex_unlock(&camera->lock);
+	if (pad >= GMSL_MAX_LINKS || streams_mask != BIT(0))
+		return -EINVAL;
+	if (!camera->gmsl.links[pad].desc)
+		return -ENODEV;
 
-	if (!enable)
-		pm_runtime_put_autosuspend(&camera->gmsl.client->dev);
+	dev_info(&camera->gmsl.client->dev,
+		 "max96724-imx390: enable streams pad=%u\n", pad);
 
-	return 0;
+	return gmsl_camera_stream(camera, BIT(pad), true);
+}
+
+static int gmsl_camera_disable_streams(struct v4l2_subdev *sd,
+				       struct v4l2_subdev_state *state,
+				       u32 pad, u64 streams_mask)
+{
+	struct gmsl_camera *camera = to_gmsl_camera(sd);
+
+	if (pad >= GMSL_MAX_LINKS || streams_mask != BIT(0))
+		return -EINVAL;
+
+	dev_info(&camera->gmsl.client->dev,
+		 "max96724-imx390: disable streams pad=%u\n", pad);
+
+	return gmsl_camera_stream(camera, BIT(pad), false);
 }
 
 static int gmsl_camera_init_cfg(struct v4l2_subdev *sd,
@@ -431,6 +491,8 @@ static const struct v4l2_subdev_pad_ops gmsl_camera_pad_ops = {
 	.get_frame_interval = gmsl_camera_get_frame_interval,
 	.set_frame_interval = gmsl_camera_set_frame_interval,
 	.get_mbus_config = gmsl_camera_get_mbus_config,
+	.enable_streams = gmsl_camera_enable_streams,
+	.disable_streams = gmsl_camera_disable_streams,
 };
 
 static const struct v4l2_subdev_internal_ops gmsl_camera_internal_ops = {
@@ -478,7 +540,7 @@ static ssize_t gmsl_links_show(struct device *dev,
 	return 9;
 }
 
-static DEVICE_ATTR(gmsl_links, S_IRUSR | S_IRUGO, gmsl_links_show, NULL);
+static DEVICE_ATTR_RO(gmsl_links);
 
 static int gmsl_camera_probe(struct i2c_client *client)
 {

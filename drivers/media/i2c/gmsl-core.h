@@ -101,6 +101,7 @@ struct gmsl_dev {
 	struct v4l2_mbus_config mbus_config;
 	u8 dt_addr;
 	u8 link_lock_status;
+	u8 streaming_mask;
 };
 
 int gmsl_write_addr(struct gmsl_dev *gmsl, u8 addr, u16 reg, u8 val);
@@ -115,6 +116,6 @@ int gmsl_core_set_board(struct gmsl_dev *gmsl,
 			const struct gmsl_board_desc *board);
 int gmsl_core_hw_init(struct gmsl_dev *gmsl);
 int gmsl_core_sensor_init(struct gmsl_dev *gmsl);
-int gmsl_core_s_stream(struct gmsl_dev *gmsl, bool enable);
+int gmsl_core_s_stream(struct gmsl_dev *gmsl, u8 link_mask, bool enable);
 
 #endif

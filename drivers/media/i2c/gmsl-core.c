@@ -220,26 +220,34 @@ int gmsl_core_hw_init(struct gmsl_dev *gmsl)
 
 		ret = gmsl->des_ops->configure_link(gmsl, link);
 		if (ret)
-			goto out;
+			goto link_fail;
 
 		ret = gmsl->des_ops->monopolize_link(gmsl, i);
 		if (ret)
-			goto out;
+			goto link_fail;
 
 		ret = link->ser_ops->probe(link);
-		if (ret) {
-			gmsl->link_lock_status &= ~BIT(i);
-			goto out;
-		}
+		if (ret)
+			goto link_fail;
 
 		ret = link->ser_ops->configure(link);
 		if (ret)
-			goto out;
+			goto link_fail;
 
 		link->locked = true;
+		continue;
+
+link_fail:
+		dev_err(gmsl->dev,
+			"max96724-imx390: link %c init failed: %d\n",
+			'A' + i, ret);
+		link->locked = false;
+		gmsl->link_lock_status &= ~BIT(i);
 	}
 
 	ret = gmsl->des_ops->restore_link(gmsl);
+	if (!ret && !gmsl->link_lock_status)
+		ret = -ENODEV;
 
 out:
 	gmsl->client->addr = gmsl->dt_addr;
@@ -258,60 +266,94 @@ int gmsl_core_sensor_init(struct gmsl_dev *gmsl)
 			continue;
 
 		ret = link->desc->sensor_ops->init(link);
-		if (ret)
-			return ret;
+		if (ret) {
+			dev_err(gmsl->dev,
+				"max96724-imx390: link %c sensor init failed: %d\n",
+				'A' + i, ret);
+			link->locked = false;
+			gmsl->link_lock_status &= ~BIT(i);
+			gmsl->streaming_mask &= ~BIT(i);
+		}
 	}
 
 	gmsl->client->addr = gmsl->dt_addr;
-	return 0;
+	return gmsl->link_lock_status ? 0 : -ENODEV;
 }
 
-int gmsl_core_s_stream(struct gmsl_dev *gmsl, bool enable)
+int gmsl_core_s_stream(struct gmsl_dev *gmsl, u8 link_mask, bool enable)
 {
 	struct gmsl_link *link;
-	u8 mask = gmsl->link_lock_status;
+	u8 target = link_mask & gmsl->link_lock_status;
+	u8 old = gmsl->streaming_mask;
+	u8 changed, started = 0;
 	int i, ret = 0;
 
 	if (enable) {
+		if (!target) {
+			ret = -ENODEV;
+			goto out;
+		}
+
+		changed = target & ~old;
 		for (i = 0; i < GMSL_MAX_LINKS; i++) {
+			if (!(changed & BIT(i)))
+				continue;
 			link = &gmsl->links[i];
-			if (!(mask & BIT(i)) || !link->desc ||
-			    !link->desc->sensor_ops->start_stream)
+			if (!link->desc || !link->desc->sensor_ops->start_stream)
 				continue;
 
 			ret = link->desc->sensor_ops->start_stream(link, true);
 			if (ret)
-				goto out;
+				goto rollback;
+			started |= BIT(i);
 		}
 
-		ret = gmsl->des_ops->enable_pipes(gmsl, mask, true);
+		gmsl->streaming_mask |= changed;
+		ret = gmsl->des_ops->enable_pipes(gmsl, gmsl->streaming_mask,
+						  true);
 		if (ret)
+			goto rollback;
+
+		for (i = 0; i < GMSL_MAX_LINKS; i++) {
+			if (!(changed & BIT(i)))
+				continue;
+			link = &gmsl->links[i];
+			if (link->ser_ops && link->ser_ops->gpio_frame_sync) {
+				ret = link->ser_ops->gpio_frame_sync(link);
+				if (ret)
+					goto out;
+			}
+		}
+	} else {
+		changed = target & old;
+		if (!changed)
 			goto out;
 
 		for (i = 0; i < GMSL_MAX_LINKS; i++) {
-			link = &gmsl->links[i];
-			if (!(mask & BIT(i)) || !link->ser_ops ||
-			    !link->ser_ops->gpio_frame_sync)
+			if (!(changed & BIT(i)))
 				continue;
-
-			ret = link->ser_ops->gpio_frame_sync(link);
-			if (ret)
-				goto out;
-		}
-	} else {
-		for (i = 0; i < GMSL_MAX_LINKS; i++) {
 			link = &gmsl->links[i];
-			if (!(mask & BIT(i)) || !link->desc ||
-			    !link->desc->sensor_ops->start_stream)
-				continue;
-
-			ret = link->desc->sensor_ops->start_stream(link, false);
-			if (ret)
-				goto out;
+			if (link->desc &&
+			    link->desc->sensor_ops->start_stream)
+				link->desc->sensor_ops->start_stream(link, false);
 		}
+
+		gmsl->streaming_mask &= ~changed;
+		ret = gmsl->des_ops->enable_pipes(gmsl, gmsl->streaming_mask,
+						  false);
 	}
 
 out:
 	gmsl->client->addr = gmsl->dt_addr;
 	return ret;
+
+rollback:
+	for (i = 0; i < GMSL_MAX_LINKS; i++) {
+		if (!(started & BIT(i)))
+			continue;
+		link = &gmsl->links[i];
+		if (link->desc && link->desc->sensor_ops->start_stream)
+			link->desc->sensor_ops->start_stream(link, false);
+	}
+	goto out;
 }

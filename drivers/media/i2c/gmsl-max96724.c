@@ -190,11 +190,11 @@ static int max96724_restore_link(struct gmsl_dev *gmsl)
 
 static int max96724_enable_pipes(struct gmsl_dev *gmsl, u8 link_mask, bool on)
 {
-	if (!on)
-		return 0;
-
 	max96724_write(gmsl, 0x00f4, link_mask);
 	max96724_write(gmsl, 0x0018, link_mask);
+
+	if (!on || !link_mask)
+		return 0;
 
 	max96724_write(gmsl, 0x0943, 0x10);
 	max96724_write(gmsl, 0x0943, 0x33);
