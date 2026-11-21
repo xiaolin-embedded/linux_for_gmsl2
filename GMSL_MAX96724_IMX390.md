@@ -1,13 +1,14 @@
 # RPi 5 + MAX96724 + IMX390 GMSL2 camera support
 
 这是基于 `raspberrypi/linux` `rpi-6.18.y` 的完整内核 fork，用于
-Raspberry Pi 5 + MAX96724 四路 GMSL2 解串器 + MAX9295A 串行器 +
-SG2-IMX390C-5200-GMSL2 相机。
+Raspberry Pi 5 + MAX96724 四路 GMSL2 解串器，支持 SG2-IMX390C 和
+SG8-AR0820C 两种相机模组。
 
 ## 分支说明
 
-- `master`（默认，唯一开发分支）：包含 SG2-IMX390C 最小驱动、Phase 1/2
-  分层框架、board/link 描述符和 `gmsl-reg` 工具。后续修改直接提交到 master。
+- `master`（默认，唯一开发分支）：包含 IMX390/AR0820 驱动、Phase 1/2
+  分层框架、board/link 描述符、per-link streaming 和 `gmsl-reg` 工具。
+  后续修改直接提交到 master。
 - `vendor-full-port`：厂商 14 个 `z_xcdes*` 驱动的完整移植版本，保留作历史
   参考；本次 IMX390 最小版本不依赖它。
 
@@ -20,6 +21,17 @@ SG2-IMX390C-5200-GMSL2 相机。
 - 目标板：Raspberry Pi 5 Model B Rev 1.1
 - 测试内核：`6.18.62-v8-16k+`
 
+## 支持模组
+
+| 模组 | Sensor | ISP | 加串器 | 分辨率 | overlay |
+|---|---|---|---|---|---|
+| SG2-IMX390C-5200-GMSL2 | IMX390 | GW5200 | MAX9295A | 1920x1080 UYVY | `max96724-imx390` |
+| SG8-AR0820C-5300/5200-G2A | AR0820 | GW5300/5200 | MAX9295A（96717F 自动识别） | 3840x2160 UYVY | `max96724-ar0820` |
+
+加串器支持运行时自动识别：MAX9295A (`0x91`)、MAX96717 (`0xbf`)、
+MAX96717F (`0xc8`)。因此同一 overlay 也可用于 96717/96717F 版本的模组。
+两颗 Sensor 都在 ISP 后面，host 侧只控制 ISP + SerDes，不直接配置 Sensor。
+
 ## 关键文件
 
 ```text
@@ -27,10 +39,14 @@ drivers/media/i2c/gmsl-core.c/.h
 drivers/media/i2c/gmsl-v4l2.c
 drivers/media/i2c/gmsl-max96724.c/.h
 drivers/media/i2c/gmsl-max9295.c/.h
+drivers/media/i2c/gmsl-max96717.c/.h
+drivers/media/i2c/gmsl-ser-auto.c/.h
 drivers/media/i2c/gmsl-imx390.c/.h
+drivers/media/i2c/gmsl-ar0820.c/.h
 drivers/media/i2c/gmsl-desc.c/.h
 drivers/media/platform/raspberrypi/rp1_cfe/cfe.c
 arch/arm/boot/dts/overlays/max96724-imx390-overlay.dts
+arch/arm/boot/dts/overlays/max96724-ar0820-overlay.dts
 tools/gmsl/gmsl-capture.sh
 tools/gmsl/gmsl-reg.c
 tools/gmsl/README.md
@@ -52,9 +68,14 @@ Documentation/gmsl/config.txt.example
   打开 CSI RX、最后一个通道关闭。
 - `gmsl-max96724.c/.h`：MAX96724 解串器 ops（reset/link lock/pipe/VC）。
 - `gmsl-max9295.c/.h`：MAX9295A 串行器 ops（地址、link、GPIO frame sync）。
+- `gmsl-max96717.c/.h`：MAX96717/96717F 串行器 ops（地址、0x0314/0x0318+
+  pipe 配置、GPIO frame sync）。
+- `gmsl-ser-auto.c/.h`：按 0x000d DEV_ID 自动选择 MAX9295A 或 MAX96717F。
 - `gmsl-imx390.c/.h`：IMX390 sensor ops（init/start/stop/fmt/mbus）。
+- `gmsl-ar0820.c/.h`：AR0820 sensor ops（3840x2160 UYVY）。
 - `gmsl-desc.c/.h`：`board_desc + link_desc + sensor_desc` 表；新增模组先加
-  desc + ops + DT。
+  desc + ops + DT。`max96724_imx390_board` 和 `max96724_ar0820_board`
+  共用 MAX96724 deser ops。
 
 Phase 1 完成 core/ops/desc 分层；Phase 2 完成 board/link/sensor 描述符拆分、
 稀疏 link 映射和 per-link 格式；P0 完成 per-link streaming 控制。模块名
@@ -98,13 +119,19 @@ sudo depmod -a
 
 ```ini
 camera_auto_detect=0
+
+# SG2-IMX390C
 dtoverlay=max96724-imx390
+
+# 或 SG8-AR0820C
+# dtoverlay=max96724-ar0820
 ```
 
-如果相机接在 CAM/DISP0：
+如果相机接在 CAM/DISP0，加上 `,cam0`：
 
 ```ini
 dtoverlay=max96724-imx390,cam0
+dtoverlay=max96724-ar0820,cam0
 ```
 
 重启后检查：
@@ -132,6 +159,10 @@ max96724-imx390: probe success!
 # 自动识别 Link / media / video，抓 60 帧并生成正立 PNG
 ./tools/gmsl/gmsl-capture.sh -r
 
+# SG8-AR0820C：指定 4K 分辨率
+./tools/gmsl/gmsl-capture.sh -s 3840x2160 -n 30 \
+  -o /home/zaiwei/ar0820.raw -p /home/zaiwei/ar0820.png -r
+
 # 指定 Link / 帧数 / 输出
 ./tools/gmsl/gmsl-capture.sh -l 0 -n 120 \
   -o /home/zaiwei/cap.raw -p /home/zaiwei/cap.png -r
@@ -143,8 +174,9 @@ max96724-imx390: probe success!
 - 遍历 `/dev/media*` 找 `driver rp1-cfe`，避免硬编码 media 编号；
 - 从 media topology 找 `rp1-cfe-csi2_chN` 对应的 `/dev/videoN`；
 - 使能 `"csi2":4+N -> "rp1-cfe-csi2_chN":0[1]`；
-- 设置 4 个 csi2 sink pad 为 `UYVY8_1X16/1920x1080 field:none`；
-- 设置视频节点 UYVY 1920x1080；
+- 按 `-s` 设置 4 个 csi2 sink pad 为 `UYVY8_1X16/WxH field:none`；
+- 按 `-s` 设置视频节点 UYVY WxH（IMX390 默认 1920x1080，
+  AR0820 使用 3840x2160）；
 - 抓帧、统计最后一帧 Y/U/V，可选生成 180° 旋转后的 PNG。
 
 依赖：`v4l-utils`，PNG/统计部分需要 `ffmpeg` 和 `python3`。
@@ -228,8 +260,11 @@ disable streams pad=0
 - 相机模组物理安装是 180° 倒置的；overlay 不再保留无效的
   `rotation`/`orientation` 属性。需要正立画面时用 `gmsl-capture.sh -r`，
   或在应用里做 `hflip+vflip`。
-- 当前 board desc 只配置 SG2-IMX390C-5200-GMSL2 一路相机，分辨率/格式/30fps
-  和寄存器序列仍按该模组硬编码；新增模组需要增加 desc/ops/DT。
+- 当前每个 board desc 只配置一路相机；Link 索引在 link desc 中固定为 A。
+- AR0820 的 4K UYVY 链路率沿用厂商配置 456 MHz（912 Mbps）；如果实际帧率
+  或带宽不足，需要再调整 overlay 的 `link-frequencies` 和 SerDes PHY 配置。
+- 加串器自动识别支持 MAX9295A/MAX96717/MAX96717F；如果模组使用其他型号，
+  需要新增 ser ops。
 - 没有实现曝光/增益/翻转等 V4L2 控制，模组 AE 自动工作。
 - SG2-IMX390C 的 IMX390 位于 GW5200 ISP 之后，默认不能通过 GMSL I2C 直接
   读写 sensor 寄存器；可访问 ISP `0x6d`，sensor 直读需要 ISP 厂商提供

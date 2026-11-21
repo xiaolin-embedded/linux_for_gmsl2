@@ -2,6 +2,43 @@
 
 ## 2026-11-21
 
+### AR0820 模组支持
+
+新增 SG8-AR0820C 相机支持：
+
+- `gmsl-ar0820.c/.h`：AR0820 sensor ops 和 3840x2160 UYVY desc；
+- `gmsl-max96717.c/.h`：MAX96717/96717F serializer ops（ID `0xbf`/`0xc8`，
+  `0x0314/0x0318`、`0x0311/0x0308/0x0002`、4-lane 和 GPIO frame sync）；
+- `gmsl-ser-auto.c/.h`：根据 0x000d DEV_ID 自动选择 MAX9295A 或 96717F；
+- `max96724_ar0820_board` 和新 overlay `max96724-ar0820`；
+- `gmsl-capture.sh` 增加 `-s WxH`，AR0820 可用 `-s 3840x2160` 抓 4K。
+
+确认要点：SG8S-AR0820C-5300-G2A 数据手册和厂商驱动使用 **MAX9295A**
+（DEV_ID `0x91`），不是 96717F；AR0820 在 GW5300 ISP 后面，host 不直接
+配置 sensor。自动识别仍保留 96717/96717F 路径，便于同系列模组。
+
+状态：`W=1` 编译通过；相机更换/上电后做 4K 抓图验证。
+
+变更文件：
+
+```text
+drivers/media/i2c/gmsl-ar0820.c
+drivers/media/i2c/gmsl-ar0820.h
+drivers/media/i2c/gmsl-max96717.c
+drivers/media/i2c/gmsl-max96717.h
+drivers/media/i2c/gmsl-ser-auto.c
+drivers/media/i2c/gmsl-ser-auto.h
+drivers/media/i2c/gmsl-desc.c
+drivers/media/i2c/gmsl-desc.h
+drivers/media/i2c/gmsl-v4l2.c
+drivers/media/i2c/Makefile
+arch/arm/boot/dts/overlays/Makefile
+arch/arm/boot/dts/overlays/max96724-ar0820-overlay.dts
+tools/gmsl/gmsl-capture.sh
+GMSL_MAX96724_IMX390.md
+Documentation/gmsl/CHANGELOG.md
+```
+
 ### P0：多路 link streaming 控制
 
 - core 的 `gmsl_core_s_stream()` 改为接受 `link_mask`，只启停 mask 内且已锁定
