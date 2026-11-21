@@ -102,6 +102,15 @@ echo "link:  $LINK"
 echo "media: $MEDIA"
 echo "video: $VIDEO"
 
+# Disable every CSI2 channel first, then enable only the requested one.
+# Otherwise CFE keeps the previous channel enabled-but-not-streaming and
+# refuses to schedule the new channel's first job.
+for p in 0 1 2 3; do
+	media-ctl -d "$MEDIA" \
+		-l "\"csi2\":$((4 + p))->\"rp1-cfe-csi2_ch$p\":0[0]" \
+		2>/dev/null || true
+done
+
 # Enable the active CSI2 channel and make all four sink pads match the sensor.
 media-ctl -d "$MEDIA" -l "\"csi2\":$SRC_PAD->\"$CH\":0[1]" || exit 1
 for p in 0 1 2 3; do
