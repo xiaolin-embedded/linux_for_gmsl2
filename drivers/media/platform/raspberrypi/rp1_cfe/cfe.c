@@ -301,6 +301,8 @@ struct cfe_device {
 
 	/* IRQ lock for node state and DMA queues */
 	spinlock_t state_lock;
+	/* Serializes sensor/CSI2 start and stop across video nodes */
+	struct mutex stream_lock;
 	bool job_ready;
 	bool job_queued;
 
@@ -1111,11 +1113,60 @@ err:
 	return 999 * 1000000UL;
 }
 
+static int cfe_sensor_stream_start(struct cfe_device *cfe,
+				   struct cfe_node *node, bool first)
+{
+	struct v4l2_mbus_config mbus_config = { 0 };
+	unsigned int pad = node->id;
+	int ret;
+
+	if (first) {
+		ret = v4l2_subdev_call(cfe->sensor, pad, get_mbus_config, pad,
+				       &mbus_config);
+		if (ret < 0 && ret != -ENOIOCTLCMD) {
+			cfe_err("g_mbus_config failed\n");
+			return ret;
+		}
+
+		cfe->csi2.dphy.active_lanes =
+			mbus_config.bus.mipi_csi2.num_data_lanes;
+		if (!cfe->csi2.dphy.active_lanes)
+			cfe->csi2.dphy.active_lanes = cfe->csi2.dphy.max_lanes;
+		if (cfe->csi2.dphy.active_lanes > cfe->csi2.dphy.max_lanes) {
+			cfe_err("Device has requested %u data lanes, which is >%u configured in DT\n",
+				cfe->csi2.dphy.active_lanes,
+				cfe->csi2.dphy.max_lanes);
+			return -EINVAL;
+		}
+
+		cfe_dbg("Configuring CSI-2 block - %u data lanes\n",
+			cfe->csi2.dphy.active_lanes);
+		cfe->csi2.dphy.dphy_rate = sensor_link_rate(cfe) / 1000000UL;
+		csi2_open_rx(&cfe->csi2);
+		cfg_reg_write(cfe, MIPICFG_CFG, MIPICFG_CFG_SEL_CSI);
+		cfg_reg_write(cfe, MIPICFG_INTE,
+			      MIPICFG_INT_CSI_DMA | MIPICFG_INT_PISP_FE);
+	}
+
+	ret = v4l2_subdev_enable_streams(cfe->sensor, pad, BIT(0));
+	if (ret < 0) {
+		cfe_err("stream on failed in subdev\n");
+		if (first) {
+			csi2_close_rx(&cfe->csi2);
+			cfg_reg_write(cfe, MIPICFG_INTE, 0);
+		}
+	}
+
+	return ret;
+}
+
 static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 {
 	struct v4l2_mbus_config mbus_config = { 0 };
 	struct cfe_node *node = vb2_get_drv_priv(vq);
 	struct cfe_device *cfe = node->cfe;
+	unsigned long flags;
+	bool first;
 	int ret;
 
 	cfe_dbg("%s: [%s] begin.\n", __func__, node_desc[node->id].name);
@@ -1147,24 +1198,41 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 		goto err_pm_put;
 	}
 
+	mutex_lock(&cfe->stream_lock);
+
+	spin_lock_irqsave(&cfe->state_lock, flags);
+	first = !test_any_node(cfe, NODE_STREAMING);
 	clear_state(cfe, FS_INT | FE_INT, node->id);
 	set_state(cfe, NODE_STREAMING, node->id);
 	node->fs_count = 0;
+	spin_unlock_irqrestore(&cfe->state_lock, flags);
+
 	cfe_start_channel(node);
 
+	if (!is_fe_enabled(cfe)) {
+		ret = cfe_sensor_stream_start(cfe, node, first);
+		mutex_unlock(&cfe->stream_lock);
+		if (ret)
+			goto err_per_link;
+		return 0;
+	}
+
 	if (!test_all_nodes(cfe, NODE_ENABLED, NODE_STREAMING)) {
+		mutex_unlock(&cfe->stream_lock);
 		cfe_dbg("Not all nodes are set to streaming yet!\n");
 		return 0;
 	}
 
 	cfg_reg_write(cfe, MIPICFG_CFG, MIPICFG_CFG_SEL_CSI);
-	cfg_reg_write(cfe, MIPICFG_INTE, MIPICFG_INT_CSI_DMA | MIPICFG_INT_PISP_FE);
+	cfg_reg_write(cfe, MIPICFG_INTE,
+		      MIPICFG_INT_CSI_DMA | MIPICFG_INT_PISP_FE);
 
 	ret = v4l2_subdev_call(cfe->sensor, pad, get_mbus_config, 0,
 			       &mbus_config);
 	if (ret < 0 && ret != -ENOIOCTLCMD) {
 		cfe_err("g_mbus_config failed\n");
-		goto err_pm_put;
+		mutex_unlock(&cfe->stream_lock);
+		goto err_disable_fe;
 	}
 
 	cfe->csi2.dphy.active_lanes = mbus_config.bus.mipi_csi2.num_data_lanes;
@@ -1172,12 +1240,15 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 		cfe->csi2.dphy.active_lanes = cfe->csi2.dphy.max_lanes;
 	if (cfe->csi2.dphy.active_lanes > cfe->csi2.dphy.max_lanes) {
 		cfe_err("Device has requested %u data lanes, which is >%u configured in DT\n",
-			cfe->csi2.dphy.active_lanes, cfe->csi2.dphy.max_lanes);
+			cfe->csi2.dphy.active_lanes,
+			cfe->csi2.dphy.max_lanes);
+		mutex_unlock(&cfe->stream_lock);
 		ret = -EINVAL;
-		goto err_disable_cfe;
+		goto err_disable_fe;
 	}
 
-	cfe_dbg("Configuring CSI-2 block - %u data lanes\n", cfe->csi2.dphy.active_lanes);
+	cfe_dbg("Configuring CSI-2 block - %u data lanes\n",
+		cfe->csi2.dphy.active_lanes);
 	cfe->csi2.dphy.dphy_rate = sensor_link_rate(cfe) / 1000000UL;
 	csi2_open_rx(&cfe->csi2);
 
@@ -1185,17 +1256,30 @@ static int cfe_start_streaming(struct vb2_queue *vq, unsigned int count)
 	ret = v4l2_subdev_call(cfe->sensor, video, s_stream, 1);
 	if (ret < 0) {
 		cfe_err("stream on failed in subdev\n");
-		goto err_disable_cfe;
+		mutex_unlock(&cfe->stream_lock);
+		goto err_disable_fe;
 	}
 
+	mutex_unlock(&cfe->stream_lock);
 	cfe_dbg("%s: [%s] end.\n", __func__, node_desc[node->id].name);
-
 	return 0;
 
-err_disable_cfe:
+err_disable_fe:
 	csi2_close_rx(&cfe->csi2);
 	cfe_stop_channel(node, true);
 	media_pipeline_stop(&node->pad);
+	goto err_pm_put_state;
+
+err_per_link:
+	cfe_stop_channel(node, false);
+	media_pipeline_stop(&node->pad);
+
+err_pm_put_state:
+	pm_runtime_put(&cfe->pdev->dev);
+	clear_state(cfe, NODE_STREAMING, node->id);
+	cfe_return_buffers(node, VB2_BUF_STATE_QUEUED);
+	return ret;
+
 err_pm_put:
 	pm_runtime_put(&cfe->pdev->dev);
 err_streaming:
@@ -1211,28 +1295,41 @@ static void cfe_stop_streaming(struct vb2_queue *vq)
 	struct cfe_device *cfe = node->cfe;
 	unsigned long flags;
 	bool fe_stop;
+	int ret;
 
 	cfe_dbg("%s: [%s] begin.\n", __func__, node_desc[node->id].name);
+
+	mutex_lock(&cfe->stream_lock);
 
 	spin_lock_irqsave(&cfe->state_lock, flags);
 	fe_stop = is_fe_enabled(cfe) &&
 		  test_all_nodes(cfe, NODE_ENABLED, NODE_STREAMING);
-
 	cfe->job_ready = false;
 	clear_state(cfe, NODE_STREAMING, node->id);
 	spin_unlock_irqrestore(&cfe->state_lock, flags);
 
 	cfe_stop_channel(node, fe_stop);
 
-	if (!test_any_node(cfe, NODE_STREAMING)) {
+	if (!is_fe_enabled(cfe)) {
+		ret = v4l2_subdev_disable_streams(cfe->sensor, node->id,
+						  BIT(0));
+		if (ret < 0 && ret != -EALREADY)
+			cfe_err("stream off failed in subdev: %d\n", ret);
+
+		if (!test_any_node(cfe, NODE_STREAMING)) {
+			csi2_close_rx(&cfe->csi2);
+			cfg_reg_write(cfe, MIPICFG_INTE, 0);
+		}
+	} else if (!test_any_node(cfe, NODE_STREAMING)) {
 		/* Stop streaming the sensor and disable the peripheral. */
 		if (v4l2_subdev_call(cfe->sensor, video, s_stream, 0) < 0)
 			cfe_err("stream off failed in subdev\n");
 
 		csi2_close_rx(&cfe->csi2);
-
 		cfg_reg_write(cfe, MIPICFG_INTE, 0);
 	}
+
+	mutex_unlock(&cfe->stream_lock);
 
 	media_pipeline_stop(&node->pad);
 
@@ -2312,6 +2409,7 @@ static int cfe_probe(struct platform_device *pdev)
 	cfe->pdev = pdev;
 	cfe->fe_csi2_channel = -1;
 	spin_lock_init(&cfe->state_lock);
+	mutex_init(&cfe->stream_lock);
 
 	cfe->csi2.base = devm_platform_ioremap_resource(pdev, 0);
 	if (IS_ERR(cfe->csi2.base)) {
@@ -2464,6 +2562,7 @@ static void cfe_remove(struct platform_device *pdev)
 
 	v4l2_device_unregister(&cfe->v4l2_dev);
 
+	mutex_destroy(&cfe->stream_lock);
 	cfe_put(cfe);
 }
 
