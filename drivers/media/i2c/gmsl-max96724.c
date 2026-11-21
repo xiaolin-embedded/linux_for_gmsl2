@@ -193,10 +193,18 @@ static int max96724_restore_link(struct gmsl_dev *gmsl)
 
 static int max96724_enable_pipes(struct gmsl_dev *gmsl, u8 link_mask, bool on)
 {
+	/*
+	 * Keep every locked link's pipe enabled. Disabling one link's pipe
+	 * also stops its remote ISP output, which cannot be recovered by
+	 * simply re-enabling the pipe later.
+	 */
+	if (!on)
+		return 0;
+
 	max96724_write(gmsl, 0x00f4, link_mask);
 	max96724_write(gmsl, 0x0018, link_mask);
 
-	if (!on || !link_mask)
+	if (!link_mask)
 		return 0;
 
 	max96724_write(gmsl, 0x0943, 0x10);

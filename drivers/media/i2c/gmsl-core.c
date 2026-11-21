@@ -343,8 +343,8 @@ int gmsl_core_s_stream(struct gmsl_dev *gmsl, u8 link_mask, bool enable)
 		}
 
 		gmsl->streaming_mask |= changed;
-		ret = gmsl->des_ops->enable_pipes(gmsl, gmsl->streaming_mask,
-						  true);
+		ret = gmsl->des_ops->enable_pipes(gmsl,
+						  gmsl->link_lock_status, true);
 		if (ret)
 			goto rollback;
 
@@ -373,8 +373,7 @@ int gmsl_core_s_stream(struct gmsl_dev *gmsl, u8 link_mask, bool enable)
 		}
 
 		gmsl->streaming_mask &= ~changed;
-		ret = gmsl->des_ops->enable_pipes(gmsl, gmsl->streaming_mask,
-						  false);
+		ret = gmsl->des_ops->enable_pipes(gmsl, 0, false);
 	}
 
 out:
