@@ -27,7 +27,7 @@ SG8-AR0820C 两种相机模组。
 |---|---|---|---|---|---|
 | SG2-IMX390C-5200-GMSL2 | IMX390 | GW5200 | MAX9295A | 1920x1080 UYVY | `max96724-imx390` |
 | SG8-AR0820C-5300/5200-G2A | AR0820 | GW5300/5200 | MAX9295A（实测 0x91；96717F 自动识别） | 3840x2160 UYVY | `max96724-ar0820` |
-| SG5-IMX490C-5300/5400-G2A | IMX490 | GW5300/5400 | 自动识别（0x91/0xbf/0xc8） | 2880x1860 UYVY | `max96724-imx490` |
+| SG5-IMX490C-5300/5400-G2A | IMX490 | GW5300/5400 | MAX9295A，默认可能在 0x40/0x41/0x62 | 2880x1860 UYVY | `max96724-imx490` |
 
 加串器支持运行时自动识别：MAX9295A (`0x91`)、MAX96717 (`0xbf`)、
 MAX96717F (`0xc8`)。因此同一 overlay 也可用于 96717/96717F 版本的模组。
@@ -313,9 +313,11 @@ CFE link rate: 1600 Mbps
   4 路同时出流、单路停止/重启和缺失 link 的错误隔离需要四相机板验证。
 - AR0820 4K 单次冷启动抓图通过，但停止后第二次启动只收到约 4 个 buffer；
   CFE/DMA 的 4K stop/start 重启路径仍需修复，期间可用单次抓图或保持连续流。
-- IMX490 已上板验证：Link A locked、serializer `0x91`、ISP `0x6d`、
-  EEPROM reg0=`0x32`，2880x1860 UYVY 多次抓图成功（30 帧约 26.4 fps）。
-  EEPROM 字符串 `HXxx-G03050520` 可作为掉标签时的辅助识别。
+- IMX490 已上板验证：Link A locked、serializer `0x91`、ISP `0x6d`，
+  2880x1860 UYVY 抓图成功。
+- 部分 IMX490 模组的 MAX9295A 默认地址是 `0x62`，驱动已支持自动迁移到
+  0x41；这类模组 EEPROM `0x51` 可能无响应，按输出 2880x1860 识别。
+- 0x62 模组实测约 14 fps；EEPROM 有响应的另一颗约 26.4 fps。
 - FE（frontend）路径目前仍走 legacy `s_stream`，暂不支持按 pad 独立停流。
 - 手动安装单独编译的模块时可能出现
   `no symbol version for module_layout`；完整 `make modules` 构建不会出现。

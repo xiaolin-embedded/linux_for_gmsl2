@@ -386,7 +386,8 @@ routing，不需要改 core 的 link mask 语义。
 - V4L2 pad `enable_streams/disable_streams`，legacy `s_stream` 兼容；
 - CFE csi2 直通路径按通道启停 sensor，CSI RX 首开/末关；
 - AR0820 3840x2160 UYVY desc/ops、MAX96717/96717F ser ops、
-  MAX9295A/96717F 自动识别和 `max96724-ar0820` overlay；
+  MAX9295A/96717F 自动识别（支持默认地址 0x40/0x41/0x62）和
+  `max96724-ar0820` overlay；
 - IMX490 2880x1860 UYVY desc/ops、`max96724-imx490` overlay 和
   `phy_clk=0x32` board 配置；已在 Link A 上完成多次 2880x1860 抓图；
 - 4-pad V4L2 subdev、frame_desc、mbus_config、runtime PM；
@@ -398,8 +399,8 @@ routing，不需要改 core 的 link mask 语义。
   约 28–29 fps、无 I2C 错误、画面正立清晰；
 - AR0820 4K 单次冷启动抓图通过：MAX9295A（0x91）、1600 Mbps、3840x2160
   UYVY；4K 重复 start/stop 仍卡在 CFE/DMA 重启，待修；
-- IMX490 2880x1860 已上板验证：Link A、912 Mbps、30 帧约 26.4 fps，
-  重复 start/stop 正常；EEPROM reg0=0x32 可作为识别标记；
+- IMX490 2880x1860 已上板验证：Link A、912 Mbps；0x41 模组约 26.4 fps，
+  0x62 模组约 14 fps；驱动已支持 0x62 自动迁移；
 - 4 路 mixed-link 硬件测试待补。
 
 ### 待完善（按优先级）

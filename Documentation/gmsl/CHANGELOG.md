@@ -14,19 +14,18 @@
 
 编译状态：`W=1` 通过。
 
-上板状态（2026-11-21）：通过。
+上板状态（2026-11-21）：通过，但不同模组地址/EEPROM 不同。
 
-- 现象与修复：早期 IMX490 只短暂 locked、serializer/ISP/EEPROM 无 ACK；
-  重新插好相机/POC 上电后恢复正常。同期 AR0820 在同一 port/线缆上正常，
-  说明模板/Link A/POC 基础无问题。
-- 当前相机经 EEPROM 识别为 IMX490：EEPROM reg0 `0x32`（AR0820 为 `0x17`），
-  EEPROM 可见字符串 `HXxx-G03050520`；serializer `0x41` ID `0x91`，
-  ISP `0x6d` ACK。
-- Link A locked，CFE `Using a link rate of 912 Mbps`；
-- 2880x1860 UYVY，10 帧连续两次、30 帧一次均成功；
-- 30 帧约 26.4 fps，`error: slave` 计数 0；PNG 正立清晰。
-- 2880x1860 的重复 start/stop 正常；4K AR0820 的重复 start/stop 仍受
-  CFE/DMA 重启问题限制。
+- 早期“完全枚举不到”的根因：部分模组的 MAX9295A 出厂地址是 **0x62**，
+  驱动原来只探测 0x40/0x41，因此 probe 失败并把 Link A 关闭。
+- 修复：`max9295`/`max96717` 和自动探测增加 0x62；发现后迁移到
+  `0x41 + link`，若模组不接受迁移则保留 0x62。
+- 实测当前 0x62 模组：serializer ID `0x91`，迁移到 0x41 后 ISP `0x6d` ACK；
+  EEPROM `0x51` 无响应，按输出判断为 IMX490 5400 系列。
+- 2880x1860 UYVY 基线抓图成功：30 帧约 14 fps，PNG 正常；
+  相机为 90° 安装，`-r` 只做 180°，图像方向需要在应用侧再旋转。
+- 另一颗 IMX490（serializer 0x41、EEPROM 0x32）可正常 2880x1860，
+  30 帧约 26.4 fps；两颗模组都能出图。
 
 变更文件：
 
