@@ -261,6 +261,18 @@ disable streams pad=0
 - 停止后再次启动正常；
 - 4 路 mixed-link 独立启停逻辑已实现，但当前只有一颗相机，尚未做四路硬件矩阵测试。
 
+IMX490 实测（2026-11-21，Link A）：
+
+```text
+serializer @0x41 id=0x91
+ISP @0x6d ACK
+EEPROM @0x51 reg0=0x32, string HXxx-G03050520
+CFE link rate: 912 Mbps
+2880x1860 UYVY, 30 frames, ~26.4 fps
+```
+
+---
+
 AR0820 4K 实测（2026-11-21，Link A）：
 
 ```text
@@ -301,9 +313,9 @@ CFE link rate: 1600 Mbps
   4 路同时出流、单路停止/重启和缺失 link 的错误隔离需要四相机板验证。
 - AR0820 4K 单次冷启动抓图通过，但停止后第二次启动只收到约 4 个 buffer；
   CFE/DMA 的 4K stop/start 重启路径仍需修复，期间可用单次抓图或保持连续流。
-- IMX490 驱动/overlay 已编译并部署，但当前硬件上 Link A 只短暂 locked，
-  serializer/ISP/EEPROM 均无 ACK；判断为相机侧供电、POC 或模组/线缆问题，
-  尚未完成出图验证。
+- IMX490 已上板验证：Link A locked、serializer `0x91`、ISP `0x6d`、
+  EEPROM reg0=`0x32`，2880x1860 UYVY 多次抓图成功（30 帧约 26.4 fps）。
+  EEPROM 字符串 `HXxx-G03050520` 可作为掉标签时的辅助识别。
 - FE（frontend）路径目前仍走 legacy `s_stream`，暂不支持按 pad 独立停流。
 - 手动安装单独编译的模块时可能出现
   `no symbol version for module_layout`；完整 `make modules` 构建不会出现。

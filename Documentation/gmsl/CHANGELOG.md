@@ -14,10 +14,19 @@
 
 编译状态：`W=1` 通过。
 
-上板状态：未通过。相机接 Link A 时，启动日志只出现一次短暂的
-`link lock status=0x01`，随后 serializer（0x40/0x41）、ISP（0x6d）、EEPROM
-（0x51）全部无 ACK；I2C 扫描只有解串器 0x27。已排除驱动匹配问题，判断为
-相机侧 POC/12V、FAKRA 线缆或模组问题，等待硬件恢复后继续 2880x1860 抓图。
+上板状态（2026-11-21）：通过。
+
+- 现象与修复：早期 IMX490 只短暂 locked、serializer/ISP/EEPROM 无 ACK；
+  重新插好相机/POC 上电后恢复正常。同期 AR0820 在同一 port/线缆上正常，
+  说明模板/Link A/POC 基础无问题。
+- 当前相机经 EEPROM 识别为 IMX490：EEPROM reg0 `0x32`（AR0820 为 `0x17`），
+  EEPROM 可见字符串 `HXxx-G03050520`；serializer `0x41` ID `0x91`，
+  ISP `0x6d` ACK。
+- Link A locked，CFE `Using a link rate of 912 Mbps`；
+- 2880x1860 UYVY，10 帧连续两次、30 帧一次均成功；
+- 30 帧约 26.4 fps，`error: slave` 计数 0；PNG 正立清晰。
+- 2880x1860 的重复 start/stop 正常；4K AR0820 的重复 start/stop 仍受
+  CFE/DMA 重启问题限制。
 
 变更文件：
 

@@ -388,7 +388,7 @@ routing，不需要改 core 的 link mask 语义。
 - AR0820 3840x2160 UYVY desc/ops、MAX96717/96717F ser ops、
   MAX9295A/96717F 自动识别和 `max96724-ar0820` overlay；
 - IMX490 2880x1860 UYVY desc/ops、`max96724-imx490` overlay 和
-  `phy_clk=0x32` board 配置（等待相机侧供电恢复后上板验证）；
+  `phy_clk=0x32` board 配置；已在 Link A 上完成多次 2880x1860 抓图；
 - 4-pad V4L2 subdev、frame_desc、mbus_config、runtime PM；
 - I2C 地址切换、3 次重试、quiet probe；
 - `alloc_parse` link freq + `get_mbus_config`，CFE 912 Mbps；
@@ -398,8 +398,8 @@ routing，不需要改 core 的 link mask 语义。
   约 28–29 fps、无 I2C 错误、画面正立清晰；
 - AR0820 4K 单次冷启动抓图通过：MAX9295A（0x91）、1600 Mbps、3840x2160
   UYVY；4K 重复 start/stop 仍卡在 CFE/DMA 重启，待修；
-- IMX490 驱动/overlay 编译通过；当前硬件只有短暂 link lock，serializer/ISP/
-  EEPROM 无 ACK，待排查 POC/线缆/模组；
+- IMX490 2880x1860 已上板验证：Link A、912 Mbps、30 帧约 26.4 fps，
+  重复 start/stop 正常；EEPROM reg0=0x32 可作为识别标记；
 - 4 路 mixed-link 硬件测试待补。
 
 ### 待完善（按优先级）
@@ -408,7 +408,7 @@ routing，不需要改 core 的 link mask 语义。
 |---|---|---|---|
 | P0 | AR0820 4K 停止后第二次启动只收约 4 个 buffer | 4K 不能连续 start/stop | 修 CFE/DMA 4K 重启路径 |
 | P0 | 4 路 mixed-link 未在硬件上验证 | 独立启停/错误隔离缺少实测 | 准备 4 个模组做矩阵测试 |
-| P0 | IMX490 相机侧无 link/I2C 响应 | 无法验证 2880x1860 | 检查 POC/12V、FAKRA、模组 |
+| P0 | AR0820 4K 重复 start/stop 仍卡住 | 不能连续抓 4K | 继续修 CFE/DMA 4K 重启 |
 | P1 | FE 路径仍用 legacy `s_stream` | FE 模式不能按 pad 独立停流 | 后续 FE 也改 pad streams |
 | P1 | 无 link loss/hot-plug 恢复 | 拔线/复位后不能自动恢复 | 加 delayed work/错误计数 |
 | P1 | 无 per-link 错误计数/debugfs | 现场定位困难 | 加 sysfs/debugfs |
