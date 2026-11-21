@@ -1,8 +1,9 @@
 # GMSL Camera Framework Design
 
-> 状态：Phase 1 已实现并在 RPi 5 + MAX96724 + MAX9295A + SG2-IMX390C 上通过
-> golden test。本文描述的是**目标框架**，Phase 1 只完成了其中的 core/ops/desc
-> 分层；与 SIPL/AIS 对齐的部分仍按 Roadmap 分阶段补齐。
+> 状态：Phase 1（core/ops/desc 分层）和 Phase 2（board/link/sensor 描述符拆分、
+> per-link 格式、稀疏 link 映射）已实现，并在 RPi 5 + MAX96724 + MAX9295A +
+> SG2-IMX390C 上通过 golden test。本文描述的是**目标框架**；与 SIPL/AIS 对齐的
+> 部分仍按 Roadmap 分阶段补齐。
 
 ## 1. 目标与非目标
 
@@ -22,7 +23,7 @@
 
 - 不在内核里实现一个用户态 camera server（SIPL/AIS 的 server 部分放在用户态）。
 - 不追求一次性支持所有 GMSL 芯片；先覆盖 MAX96724 + MAX9295A/MAX96717。
-- 不在 Phase 1 引入 V4L2 streams API 的完整路由；先保持 legacy `s_stream` 和
+- 当前不引入 V4L2 streams API 的完整路由；先保持 legacy `s_stream` 和
   4-pad 模型，后续再演进。
 
 ## 2. 术语与拓扑
@@ -87,23 +88,20 @@ gmsl-core        board/link 状态、I2C 地址切换/重试、ops 调度、PM�
         └── imx390 / ar0820 sensor ops
 ```
 
-### 4.1 对象模型（目标）
+### 4.1 对象模型（Phase 2 已实现）
 
 ```c
 struct gmsl_board_desc {
     const char *compatible;
     const struct gmsl_des_ops *des_ops;
-    unsigned int num_links;
+    unsigned int num_links;            /* 已配置 link 数，不是 4 */
     const struct gmsl_link_desc *links;
-    int (*power_on)(struct gmsl_dev *gmsl);
-    void (*power_off)(struct gmsl_dev *gmsl);
 };
 
 struct gmsl_link_desc {
-    unsigned int index;              /* 0..3 = A..D = pad = VC */
+    unsigned int index;                /* 0..3 = A..D = pad = VC，可稀疏 */
     const struct gmsl_sensor_desc *sensor;
-    const struct gmsl_ser_ops *ser;
-    u8 ser_addr;
+    const struct gmsl_ser_ops *ser_ops;
     u8 sensor_addr;
     u8 num_lanes;
     u64 link_freq;
@@ -115,7 +113,7 @@ struct gmsl_sensor_desc {
     u32 width, height;
     u32 mbus_code;
     u8 csi_dt;
-    const struct gmsl_sensor_ops *ops;
+    const struct gmsl_sensor_ops *sensor_ops;
     const struct gmsl_reg_value *init;
     unsigned int init_len;
     const struct gmsl_reg_value *start;
@@ -125,13 +123,18 @@ struct gmsl_sensor_desc {
 };
 ```
 
-Phase 1 的当前代码把 `ser_ops` 塞在 `gmsl_sensor_desc` 里，且所有 link 共用一个
-desc；这是简化版，目标设计要拆成 `board_desc + link_desc + sensor_desc +
-ser_ops`，这样：
+Phase 2 已把 `board_desc / link_desc / sensor_desc / ser_ops` 拆开：
 
 - 换 serializer 不需要复制 sensor desc；
+- `link_desc.index` 允许只填 Link A/C 等稀疏组合，core 按 index 写入
+  `gmsl->links[]`；
 - 同一块板不同 link 可以挂不同 sensor；
+- V4L2 层按 pad 读写对应 link 的格式，`set_fmt` 不再覆盖所有 link；
+- 未使用的 link 继承首个已配置 link 的默认格式，保证 4 个 source pad 对 CFE
+  始终报告合法格式；
 - 新板只写一个 `board_desc` + DT。
+
+板级 power/POC 顺序仍在 V4L2/PM 层，计划在 Phase 3 移到 board ops。
 
 ### 4.2 Ops contract
 
@@ -364,24 +367,26 @@ s_stream(pad, off):
 
 ## 11. 当前状态与缺口
 
-### 已实现（Phase 1）
+### 已实现（Phase 1 + Phase 2）
 
 - core / v4l2 / max96724 / max9295 / imx390 / desc 分层；
+- `board_desc + link_desc + sensor_desc + ser_ops` 拆分，link 按 index 稀疏映射；
+- per-link `set_fmt`，未使用 pad 继承合法默认格式；
 - 4-pad V4L2 subdev、frame_desc、mbus_config、runtime PM；
 - I2C 地址切换、3 次重试、quiet probe；
 - `alloc_parse` link freq + `get_mbus_config`，CFE 912 Mbps；
 - 模块名/compatible/overlay/config 不变；
-- `W=1` 编译通过；上板 golden test 通过：
-  Link A、912 Mbps、60 帧 1920x1080 UYVY、约 29.95 fps、无 I2C 错误。
+- `W=1` 编译通过；Phase 1/2 上板 golden test 均通过：
+  Link A、912 Mbps、1920x1080 UYVY、约 28–29 fps、无 I2C 错误；
+  Phase 2 测试 120 帧，画面正立清晰。
 
 ### 待完善（按优先级）
 
 | 优先级 | 缺口 | 影响 | 建议 |
 |---|---|---|---|
-| P0 | `board_desc/link_desc` 未落地，所有 link 共用一个 desc | 不能混插不同 sensor | Phase 2 引入 |
 | P0 | ser ops 只有 MAX9295A | 96717/96717F 模组不能直接用 | 加 `gmsl-max96717.c` |
 | P0 | 无 AR0820 desc | 第二个模组无法验证 | Phase 2 加 |
-| P0 | `set_fmt` 改所有 link，`s_stream` 启所有 locked link | 不能按 pad 独立控制 | 改为 per-link mask |
+| P0 | `s_stream` 仍启所有 locked link | 不能按 pad 独立控制 | 改为 per-link mask（Phase 3） |
 | P1 | 无 link loss/hot-plug 恢复 | 拔线/复位后不能自动恢复 | 加 delayed work/错误计数 |
 | P1 | 无 per-link 错误计数/debugfs | 现场定位困难 | 加 sysfs/debugfs |
 | P1 | power/POC 顺序仍在 V4L2 层 | 多板/多模组不好复用 | 移到 board ops |
@@ -395,10 +400,11 @@ s_stream(pad, off):
 ## 12. Roadmap
 
 - **Phase 1（已完成）**：结构分层，行为不变，硬件 golden test 通过。
-- **Phase 2**：`board_desc/link_desc` 拆分；`max96717` ser ops；`ar0820`
-  desc/ops；per-link `set_fmt/s_stream`；AR0820 4K 抓图。
-- **Phase 3**：混插 IMX390 + AR0820；link loss/hot-plug 恢复；per-link
-  错误计数/debugfs；抓图 CLI 参数化。
+- **Phase 2（部分完成）**：`board_desc/link_desc/sensor_desc` 拆分、稀疏 link
+  映射、per-link `set_fmt` 已完成并通过 golden test；剩余 `max96717` ser ops、
+  `ar0820` desc/ops、AR0820 4K 抓图。
+- **Phase 3**：混插 IMX390 + AR0820；per-link `s_stream` mask；link loss/hot-plug
+  恢复；per-link 错误计数/debugfs；抓图 CLI 参数化。
 - **Phase 4（可选）**：DT YAML binding；V4L2 streams/routing；V4L2 controls；
   与 mainline `maxim-serdes` 对齐；CI/长跑/故障注入。
 

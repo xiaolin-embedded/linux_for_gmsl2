@@ -8,8 +8,9 @@ SG2-IMX390C-5200-GMSL2 相机。
 
 - `master`（默认）：只保留 SG2-IMX390C-5200-GMSL2 一路相机，包含驱动、
   overlay、抓图脚本和本文档。后续新增相机模组直接在此分支追加提交。
-- `max96724-framework`：Phase 1 分层重构分支（当前分支）。模块名、
-  compatible、overlay、寄存器序列与 master 保持一致，等待上板 golden test。
+- `max96724-framework`：Phase 1/2 分层重构与 board/link 描述符分支（当前分支）。
+  模块名、compatible、overlay、寄存器序列与 master 保持一致，上板 golden test
+  已通过。
 - `vendor-full-port`：厂商 14 个 `z_xcdes*` 驱动的完整移植版本，保留作参考；
   本次 IMX390 最小版本不依赖它。
 
@@ -48,15 +49,17 @@ Documentation/gmsl/config.txt.example
 - `gmsl-max96724.c/.h`：MAX96724 解串器 ops（reset/link lock/pipe/VC）。
 - `gmsl-max9295.c/.h`：MAX9295A 串行器 ops（地址、link、GPIO frame sync）。
 - `gmsl-imx390.c/.h`：IMX390 sensor ops（init/start/stop/fmt/mbus）。
-- `gmsl-desc.c/.h`：sensor descriptor 表；新增模组先加 desc + ops + DT。
+- `gmsl-desc.c/.h`：`board_desc + link_desc + sensor_desc` 表；新增模组先加
+  desc + ops + DT。
 
-Phase 1 只做结构拆分，模块名 `max96724_imx390.ko`、compatible
+Phase 1 完成 core/ops/desc 分层；Phase 2 完成 board/link/sensor 描述符拆分、
+稀疏 link 映射和 per-link 格式。模块名 `max96724_imx390.ko`、compatible
 `zuojisi,max96724-imx390`、overlay、config.txt 和寄存器序列保持不变。
 `W=1` 编译已通过；上板 golden test 已通过：
 
 - Link A 锁定，`gmsl_links = 1 0 0 0`
 - CFE 使用 912 Mbps
-- 60 帧 1920x1080 UYVY，约 29.95 fps
+- 120 帧 1920x1080 UYVY，约 28–29 fps
 - 无 `error: slave`
 - `gmsl-capture.sh -r` 生成的正立 PNG 正常
 

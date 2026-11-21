@@ -1,5 +1,52 @@
 # 修改记录
 
+## 2026-11-21
+
+### Phase 2：board/link/sensor 描述符拆分
+
+将 Phase 1 的“一个 sensor desc 服务所有 link”改为板级/链路级/传感器级描述符：
+
+- `gmsl_board_desc`：板级 compatible、deser ops、已配置 link 数；
+- `gmsl_link_desc`：`index`（0..3 = A..D = pad = VC）、sensor desc、ser ops、
+  sensor 地址、lane 数和 link freq；
+- `gmsl_sensor_desc`：只保留分辨率、格式、CSI DT、sensor ops 和寄存器序列；
+- `gmsl_core_set_board()`：按 `link_desc.index` 稀疏填充 `gmsl->links[]`，
+  允许只配置 Link A/C 等组合，并拒绝越界、重复 index 和不完整描述符；
+- 未使用的 link 继承首个已配置 link 的默认格式，4 个 source pad 始终对 CFE
+  报告合法格式；
+- `set_fmt` 改为 per-link，不再修改所有 link；
+- IMX390 sensor ops 改用 `link->sensor_addr` / `link->link_freq`；
+- probe 的 match data 从 sensor desc 改为 board desc，模块名/compatible/overlay
+  保持不变。
+
+### 上板验证
+
+- 首次启动：Link A 锁定，`gmsl_links = 1 0 0 0`，serializer detected。
+- 首次抓图失败：`VIDIOC_STREAMON` 返回 `Broken pipe`，dmesg 为
+  `Failed to start media pipeline: -32`。根因是 Phase 2 下未使用的 sensor pad
+  1..3 报告 `unknown/0x0`，CFE 启动 pipeline 时校验失败；让未使用 link 继承
+  默认格式后恢复。同时 `enum_mbus_code` 改为按 pad 返回，避免返回 0 格式。
+- 最终测试（120 帧）：
+  - `gmsl_links = 1 0 0 0`
+  - CFE `Using a link rate of 912 Mbps`
+  - 1920x1080 UYVY，约 28–29 fps
+  - `error: slave` 计数 0
+  - 抓图 PNG 正立、画面清晰
+
+### 变更文件
+
+```text
+drivers/media/i2c/gmsl-core.c
+drivers/media/i2c/gmsl-core.h
+drivers/media/i2c/gmsl-desc.c
+drivers/media/i2c/gmsl-desc.h
+drivers/media/i2c/gmsl-imx390.c
+drivers/media/i2c/gmsl-v4l2.c
+Documentation/gmsl/ARCHITECTURE.md
+Documentation/gmsl/CHANGELOG.md
+GMSL_MAX96724_IMX390.md
+```
+
 ## 2026-11-17
 
 ### Phase 1：GMSL 分层框架
