@@ -1,18 +1,20 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-2.0
 #
-# gmsl-capture.sh - capture frames from a MAX96724 + IMX390 GMSL2 camera
+# gmsl-capture.sh - capture frames from a MAX96724 GMSL2 camera
 #
 # Usage: gmsl-capture.sh [options]
 #   -l, --link N       GMSL link: 0=A, 1=B, 2=C, 3=D (default: auto)
 #   -n, --frames N     number of frames to capture (default: 60)
 #   -o, --output FILE  raw UYVY output (default: $HOME/gmsl-capture.raw)
 #   -p, --png FILE     last-frame PNG output (default: $HOME/gmsl-capture.png)
+#   -s, --size WxH     capture size (default: 1920x1080; AR0820: 3840x2160)
 #   -r, --rotate       rotate the PNG 180 degrees
 #   -h, --help         show this help
 
 set -u
 
+SIZE=1920x1080
 WIDTH=1920
 HEIGHT=1080
 FORMAT=UYVY
@@ -31,11 +33,21 @@ while [ $# -gt 0 ]; do
 	-n|--frames) FRAMES=$2; shift 2 ;;
 	-o|--output) OUT=$2; shift 2 ;;
 	-p|--png) PNG=$2; shift 2 ;;
+	-s|--size) SIZE=$2; shift 2 ;;
 	-r|--rotate) ROTATE=1; shift ;;
-	-h|--help) sed -n '2,15p' "$0"; exit 0 ;;
+	-h|--help) sed -n '2,13p' "$0"; exit 0 ;;
 	*) die "unknown option: $1" ;;
 	esac
 done
+
+case "$SIZE" in
+*x*) WIDTH=${SIZE%x*}; HEIGHT=${SIZE#*x} ;;
+*) die "invalid size $SIZE (use WxH)" ;;
+esac
+case "$WIDTH$HEIGHT" in
+*[!0-9]*|'') die "invalid size $SIZE" ;;
+esac
+[ "$WIDTH" -gt 0 ] && [ "$HEIGHT" -gt 0 ] || die "invalid size $SIZE"
 
 for cmd in v4l2-ctl media-ctl; do
 	command -v "$cmd" >/dev/null 2>&1 ||
