@@ -5,6 +5,6 @@
 
 #include "gmsl-core.h"
 
-extern const struct gmsl_sensor_desc imx390_desc;
+extern const struct gmsl_board_desc max96724_imx390_board;
 
 #endif

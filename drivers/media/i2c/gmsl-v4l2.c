@@ -165,7 +165,7 @@ static int gmsl_camera_set_fmt(struct v4l2_subdev *sd,
 			       struct v4l2_subdev_format *format)
 {
 	struct gmsl_camera *camera = to_gmsl_camera(sd);
-	int ret = 0, i;
+	int ret = 0;
 
 	if (format->pad >= GMSL_MAX_LINKS)
 		return -EINVAL;
@@ -182,9 +182,7 @@ static int gmsl_camera_set_fmt(struct v4l2_subdev *sd,
 		goto out;
 	}
 
-	for (i = 0; i < GMSL_MAX_LINKS; i++)
-		camera->gmsl.links[i].fmt = format->format;
-	camera->gmsl.default_fmt = format->format;
+	camera->gmsl.links[format->pad].fmt = format->format;
 	ret = 0;
 out:
 	mutex_unlock(&camera->lock);
@@ -230,6 +228,9 @@ static int gmsl_camera_enum_frame_size(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	link = &camera->gmsl.links[fse->pad];
+	if (!link->desc)
+		return -EINVAL;
+
 	fse->min_width = link->desc->width;
 	fse->max_width = fse->min_width;
 	fse->min_height = link->desc->height;
@@ -299,10 +300,10 @@ static int gmsl_camera_enum_mbus_code(struct v4l2_subdev *sd,
 {
 	struct gmsl_camera *camera = to_gmsl_camera(sd);
 
-	if (code->index != 0)
+	if (code->pad >= GMSL_MAX_LINKS || code->index != 0)
 		return -EINVAL;
 
-	code->code = camera->gmsl.default_fmt.code;
+	code->code = camera->gmsl.links[code->pad].fmt.code;
 
 	return 0;
 }
@@ -350,16 +351,21 @@ static int gmsl_camera_init_cfg(struct v4l2_subdev *sd,
 				struct v4l2_subdev_state *state)
 {
 	struct gmsl_camera *camera = to_gmsl_camera(sd);
-	struct v4l2_mbus_framefmt *fmt =
-		v4l2_subdev_state_get_format(state, 0);
-	struct v4l2_rect *crop = v4l2_subdev_state_get_crop(state, 0);
+	struct v4l2_mbus_framefmt *fmt;
+	struct v4l2_rect *crop;
+	int i;
 
-	*fmt = camera->gmsl.default_fmt;
+	for (i = 0; i < GMSL_MAX_LINKS; i++) {
+		fmt = v4l2_subdev_state_get_format(state, i);
+		crop = v4l2_subdev_state_get_crop(state, i);
 
-	crop->left = 0;
-	crop->top = 0;
-	crop->width = camera->gmsl.default_fmt.width;
-	crop->height = camera->gmsl.default_fmt.height;
+		*fmt = camera->gmsl.links[i].fmt;
+
+		crop->left = 0;
+		crop->top = 0;
+		crop->width = fmt->width;
+		crop->height = fmt->height;
+	}
 
 	return 0;
 }
@@ -375,6 +381,9 @@ static int gmsl_camera_get_frame_desc(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	link = &camera->gmsl.links[pad];
+	if (!link->desc)
+		return -EINVAL;
+
 	fd->type = V4L2_MBUS_FRAME_DESC_TYPE_CSI2;
 	fd->num_entries = 1;
 	fd->entry[0].bus.csi2.dt = link->desc->csi_dt;
@@ -394,7 +403,7 @@ static int gmsl_camera_get_mbus_config(struct v4l2_subdev *sd,
 		return -EINVAL;
 
 	link = &camera->gmsl.links[pad];
-	if (link->desc->sensor_ops->get_mbus_config)
+	if (link->desc && link->desc->sensor_ops->get_mbus_config)
 		return link->desc->sensor_ops->get_mbus_config(link, cfg);
 
 	*cfg = camera->gmsl.mbus_config;
@@ -476,16 +485,16 @@ static int gmsl_camera_probe(struct i2c_client *client)
 	struct device *dev = &client->dev;
 	struct fwnode_handle *endpoint;
 	struct v4l2_fwnode_endpoint ep = { };
-	const struct gmsl_sensor_desc *desc;
+	const struct gmsl_board_desc *board;
 	struct gmsl_camera *camera;
 	struct gmsl_dev *gmsl;
 	int ret;
 
 	dev_info(dev, "max96724-imx390: probing...\n");
 
-	desc = i2c_get_match_data(client);
-	if (!desc) {
-		dev_err(dev, "no matching sensor descriptor\n");
+	board = i2c_get_match_data(client);
+	if (!board || !board->num_links) {
+		dev_err(dev, "no matching board descriptor\n");
 		return -ENODEV;
 	}
 
@@ -496,6 +505,7 @@ static int gmsl_camera_probe(struct i2c_client *client)
 	gmsl = &camera->gmsl;
 	gmsl->client = client;
 	gmsl->dev = dev;
+	mutex_init(&camera->lock);
 
 	endpoint = fwnode_graph_get_next_endpoint(dev_fwnode(dev), NULL);
 	if (!endpoint) {
@@ -514,7 +524,7 @@ static int gmsl_camera_probe(struct i2c_client *client)
 	gmsl->mbus_config.type = ep.bus_type;
 	gmsl->mbus_config.link_freq = ep.nr_of_link_frequencies ?
 					      ep.link_frequencies[0] :
-					      desc->link_freq;
+					      board->links[0].link_freq;
 	gmsl->mbus_config.bus.mipi_csi2 = ep.bus.mipi_csi2;
 	v4l2_fwnode_endpoint_free(&ep);
 
@@ -542,9 +552,9 @@ static int gmsl_camera_probe(struct i2c_client *client)
 	if (IS_ERR(camera->reset_gpio))
 		return PTR_ERR(camera->reset_gpio);
 
-	ret = gmsl_core_set_desc(gmsl, desc);
+	ret = gmsl_core_set_board(gmsl, board);
 	if (ret) {
-		dev_err(dev, "failed to set sensor descriptor\n");
+		dev_err(dev, "failed to set board descriptor\n");
 		return ret;
 	}
 
@@ -572,8 +582,6 @@ static int gmsl_camera_probe(struct i2c_client *client)
 	ret = gmsl_camera_get_regulators(camera);
 	if (ret)
 		goto entity_cleanup;
-
-	mutex_init(&camera->lock);
 
 	ret = gmsl_core_hw_init(gmsl);
 	if (ret) {
@@ -639,13 +647,13 @@ static const struct dev_pm_ops gmsl_camera_pm_ops = {
 };
 
 static const struct i2c_device_id gmsl_camera_id[] = {
-	{ "max96724_imx390", (kernel_ulong_t)&imx390_desc },
+	{ "max96724_imx390", (kernel_ulong_t)&max96724_imx390_board },
 	{},
 };
 MODULE_DEVICE_TABLE(i2c, gmsl_camera_id);
 
 static const struct of_device_id gmsl_camera_dt_ids[] = {
-	{ .compatible = "zuojisi,max96724-imx390", .data = &imx390_desc },
+	{ .compatible = "zuojisi,max96724-imx390", .data = &max96724_imx390_board },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, gmsl_camera_dt_ids);

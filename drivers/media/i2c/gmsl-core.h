@@ -54,9 +54,6 @@ struct gmsl_sensor_desc {
 	u32 height;
 	u32 mbus_code;
 	u8 csi_dt;
-	u8 num_lanes;
-	u64 link_freq;
-	const struct gmsl_ser_ops *ser_ops;
 	const struct gmsl_sensor_ops *sensor_ops;
 	const struct gmsl_reg_value *init;
 	unsigned int init_len;
@@ -66,24 +63,43 @@ struct gmsl_sensor_desc {
 	unsigned int stop_len;
 };
 
+struct gmsl_link_desc {
+	unsigned int index;
+	const struct gmsl_sensor_desc *sensor;
+	const struct gmsl_ser_ops *ser_ops;
+	u8 sensor_addr;
+	u8 num_lanes;
+	u64 link_freq;
+};
+
+struct gmsl_board_desc {
+	const char *compatible;
+	const struct gmsl_des_ops *des_ops;
+	unsigned int num_links;
+	const struct gmsl_link_desc *links;
+};
+
 struct gmsl_link {
 	struct gmsl_dev *dev;
 	unsigned int index;
 	const struct gmsl_sensor_desc *desc;
+	const struct gmsl_ser_ops *ser_ops;
 	struct v4l2_mbus_framefmt fmt;
 	u8 ser_addr;
 	u8 sensor_addr;
+	u8 num_lanes;
+	u64 link_freq;
 	bool locked;
 };
 
 struct gmsl_dev {
 	struct i2c_client *client;
 	struct device *dev;
+	const struct gmsl_board_desc *board;
 	const struct gmsl_des_ops *des_ops;
 	struct gmsl_link links[GMSL_MAX_LINKS];
-	struct v4l2_mbus_framefmt default_fmt;
 	struct v4l2_mbus_config mbus_config;
-	u8 sensor_addr;
+	u8 dt_addr;
 	u8 link_lock_status;
 };
 
@@ -95,8 +111,8 @@ int gmsl_mod_reg_addr(struct gmsl_dev *gmsl, u8 addr, u16 reg, u8 mask,
 int gmsl_load_regs(struct gmsl_dev *gmsl, u8 addr,
 		   const struct gmsl_reg_value *regs, unsigned int regnum);
 
-int gmsl_core_set_desc(struct gmsl_dev *gmsl,
-		       const struct gmsl_sensor_desc *desc);
+int gmsl_core_set_board(struct gmsl_dev *gmsl,
+			const struct gmsl_board_desc *board);
 int gmsl_core_hw_init(struct gmsl_dev *gmsl);
 int gmsl_core_sensor_init(struct gmsl_dev *gmsl);
 int gmsl_core_s_stream(struct gmsl_dev *gmsl, bool enable);

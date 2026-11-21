@@ -10,7 +10,7 @@ static int imx390_sensor_init(struct gmsl_link *link)
 	if (!link->desc->init || !link->desc->init_len)
 		return 0;
 
-	return gmsl_load_regs(gmsl, gmsl->sensor_addr, link->desc->init,
+	return gmsl_load_regs(gmsl, link->sensor_addr, link->desc->init,
 			      link->desc->init_len);
 }
 
@@ -25,7 +25,7 @@ static int imx390_start_stream(struct gmsl_link *link, bool on)
 	if (!regs || !len)
 		return 0;
 
-	return gmsl_load_regs(gmsl, gmsl->sensor_addr, regs, len);
+	return gmsl_load_regs(gmsl, link->sensor_addr, regs, len);
 }
 
 static int imx390_get_fmt(struct gmsl_link *link,
@@ -40,7 +40,7 @@ static int imx390_get_mbus_config(struct gmsl_link *link,
 {
 	*cfg = link->dev->mbus_config;
 	if (!cfg->link_freq)
-		cfg->link_freq = link->desc->link_freq;
+		cfg->link_freq = link->link_freq;
 
 	return 0;
 }

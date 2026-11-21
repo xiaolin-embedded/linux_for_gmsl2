@@ -4,7 +4,6 @@
 #include <linux/string.h>
 
 #include "gmsl-core.h"
-#include "gmsl-max96724.h"
 
 int gmsl_write_addr(struct gmsl_dev *gmsl, u8 addr, u16 reg, u8 val)
 {
@@ -131,38 +130,75 @@ int gmsl_load_regs(struct gmsl_dev *gmsl, u8 addr,
 	return ret;
 }
 
-int gmsl_core_set_desc(struct gmsl_dev *gmsl,
-		       const struct gmsl_sensor_desc *desc)
+static void gmsl_fmt_from_desc(struct v4l2_mbus_framefmt *fmt,
+			       const struct gmsl_sensor_desc *desc)
 {
-	struct gmsl_link *link;
-	int i;
+	fmt->code = desc->mbus_code;
+	fmt->width = desc->width;
+	fmt->height = desc->height;
+	fmt->colorspace = V4L2_COLORSPACE_REC709;
+	fmt->ycbcr_enc = V4L2_MAP_YCBCR_ENC_DEFAULT(V4L2_COLORSPACE_REC709);
+	fmt->quantization = V4L2_QUANTIZATION_FULL_RANGE;
+	fmt->xfer_func = V4L2_MAP_XFER_FUNC_DEFAULT(V4L2_COLORSPACE_REC709);
+	fmt->field = V4L2_FIELD_NONE;
+}
 
-	if (!desc || !desc->ser_ops || !desc->sensor_ops)
+int gmsl_core_set_board(struct gmsl_dev *gmsl,
+			const struct gmsl_board_desc *board)
+{
+	const struct gmsl_link_desc *ld;
+	struct gmsl_link *link, *first = NULL;
+	int i, j;
+
+	if (!board || !board->des_ops || !board->links || !board->num_links)
 		return -EINVAL;
 
-	gmsl->des_ops = &max96724_des_ops;
-	gmsl->sensor_addr = gmsl->client->addr;
-
-	gmsl->default_fmt.code = desc->mbus_code;
-	gmsl->default_fmt.width = desc->width;
-	gmsl->default_fmt.height = desc->height;
-	gmsl->default_fmt.colorspace = V4L2_COLORSPACE_REC709;
-	gmsl->default_fmt.ycbcr_enc =
-		V4L2_MAP_YCBCR_ENC_DEFAULT(V4L2_COLORSPACE_REC709);
-	gmsl->default_fmt.quantization = V4L2_QUANTIZATION_FULL_RANGE;
-	gmsl->default_fmt.xfer_func =
-		V4L2_MAP_XFER_FUNC_DEFAULT(V4L2_COLORSPACE_REC709);
-	gmsl->default_fmt.field = V4L2_FIELD_NONE;
+	gmsl->board = board;
+	gmsl->des_ops = board->des_ops;
+	gmsl->dt_addr = gmsl->client->addr;
 
 	for (i = 0; i < GMSL_MAX_LINKS; i++) {
 		link = &gmsl->links[i];
 		link->dev = gmsl;
 		link->index = i;
-		link->desc = desc;
-		link->fmt = gmsl->default_fmt;
+		link->desc = NULL;
+		link->ser_ops = NULL;
 		link->ser_addr = 0;
-		link->sensor_addr = gmsl->sensor_addr;
+		link->sensor_addr = 0;
+		link->num_lanes = 0;
+		link->link_freq = 0;
 		link->locked = false;
+		memset(&link->fmt, 0, sizeof(link->fmt));
+	}
+
+	for (j = 0; j < board->num_links; j++) {
+		ld = &board->links[j];
+		if (!ld->sensor || !ld->sensor->sensor_ops || !ld->ser_ops ||
+		    ld->index >= GMSL_MAX_LINKS)
+			return -EINVAL;
+
+		link = &gmsl->links[ld->index];
+		if (link->desc)
+			return -EINVAL;
+
+		link->desc = ld->sensor;
+		link->ser_ops = ld->ser_ops;
+		link->sensor_addr = ld->sensor_addr;
+		link->num_lanes = ld->num_lanes;
+		link->link_freq = ld->link_freq;
+		gmsl_fmt_from_desc(&link->fmt, ld->sensor);
+		if (!first)
+			first = link;
+	}
+
+	if (!first)
+		return -EINVAL;
+
+	/* Keep all exposed pads reporting a valid default format */
+	for (i = 0; i < GMSL_MAX_LINKS; i++) {
+		link = &gmsl->links[i];
+		if (!link->desc)
+			link->fmt = first->fmt;
 	}
 
 	return 0;
@@ -179,7 +215,7 @@ int gmsl_core_hw_init(struct gmsl_dev *gmsl)
 
 	for (i = 0; i < GMSL_MAX_LINKS; i++) {
 		link = &gmsl->links[i];
-		if (!(gmsl->link_lock_status & BIT(i)))
+		if (!link->desc || !(gmsl->link_lock_status & BIT(i)))
 			continue;
 
 		ret = gmsl->des_ops->configure_link(gmsl, link);
@@ -190,13 +226,13 @@ int gmsl_core_hw_init(struct gmsl_dev *gmsl)
 		if (ret)
 			goto out;
 
-		ret = link->desc->ser_ops->probe(link);
+		ret = link->ser_ops->probe(link);
 		if (ret) {
 			gmsl->link_lock_status &= ~BIT(i);
 			goto out;
 		}
 
-		ret = link->desc->ser_ops->configure(link);
+		ret = link->ser_ops->configure(link);
 		if (ret)
 			goto out;
 
@@ -206,7 +242,7 @@ int gmsl_core_hw_init(struct gmsl_dev *gmsl)
 	ret = gmsl->des_ops->restore_link(gmsl);
 
 out:
-	gmsl->client->addr = gmsl->sensor_addr;
+	gmsl->client->addr = gmsl->dt_addr;
 	return ret;
 }
 
@@ -217,7 +253,8 @@ int gmsl_core_sensor_init(struct gmsl_dev *gmsl)
 
 	for (i = 0; i < GMSL_MAX_LINKS; i++) {
 		link = &gmsl->links[i];
-		if (!link->locked || !link->desc->sensor_ops->init)
+		if (!link->locked || !link->desc ||
+		    !link->desc->sensor_ops->init)
 			continue;
 
 		ret = link->desc->sensor_ops->init(link);
@@ -225,7 +262,7 @@ int gmsl_core_sensor_init(struct gmsl_dev *gmsl)
 			return ret;
 	}
 
-	gmsl->client->addr = gmsl->sensor_addr;
+	gmsl->client->addr = gmsl->dt_addr;
 	return 0;
 }
 
@@ -238,7 +275,7 @@ int gmsl_core_s_stream(struct gmsl_dev *gmsl, bool enable)
 	if (enable) {
 		for (i = 0; i < GMSL_MAX_LINKS; i++) {
 			link = &gmsl->links[i];
-			if (!(mask & BIT(i)) ||
+			if (!(mask & BIT(i)) || !link->desc ||
 			    !link->desc->sensor_ops->start_stream)
 				continue;
 
@@ -253,17 +290,18 @@ int gmsl_core_s_stream(struct gmsl_dev *gmsl, bool enable)
 
 		for (i = 0; i < GMSL_MAX_LINKS; i++) {
 			link = &gmsl->links[i];
-			if (!(mask & BIT(i)) || !link->desc->ser_ops->gpio_frame_sync)
+			if (!(mask & BIT(i)) || !link->ser_ops ||
+			    !link->ser_ops->gpio_frame_sync)
 				continue;
 
-			ret = link->desc->ser_ops->gpio_frame_sync(link);
+			ret = link->ser_ops->gpio_frame_sync(link);
 			if (ret)
 				goto out;
 		}
 	} else {
 		for (i = 0; i < GMSL_MAX_LINKS; i++) {
 			link = &gmsl->links[i];
-			if (!(mask & BIT(i)) ||
+			if (!(mask & BIT(i)) || !link->desc ||
 			    !link->desc->sensor_ops->start_stream)
 				continue;
 
@@ -274,6 +312,6 @@ int gmsl_core_s_stream(struct gmsl_dev *gmsl, bool enable)
 	}
 
 out:
-	gmsl->client->addr = gmsl->sensor_addr;
+	gmsl->client->addr = gmsl->dt_addr;
 	return ret;
 }
