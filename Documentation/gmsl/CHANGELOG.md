@@ -2,6 +2,26 @@
 
 ## 2026-11-21
 
+### 双 IMX490 双路验证
+
+两颗 IMX490（serializer 0x41 和 0x62 各一颗）同时接 Link A/B：
+
+- `gmsl_links = 1 1 0 0`，serializer 地址 0x41/0x42，ISP 0x6d ACK；
+- 顺序 A→B 抓图均成功；
+- 同时启动 csi2_ch0/ch1，各抓 10 帧成功（两个 video 节点均返回 0）；
+- 2880x1860 UYVY，两个相机均可出图；相机 90° 安装，PNG 方向需应用旋转。
+
+跨 link 失败根因：启动某一路时 `enable_pipes` 只写当前 link 的 mask，会把另一
+路的 MAX96724 pipe 关闭；远端 ISP 停流后，再使能 pipe 也不能恢复。修复为：
+
+- 启动任一路时，pipe mask 使用所有 locked link；
+- per-link stop 不再关闭 pipe；
+- 抓图脚本在 enable 目标 csi2 channel 前先 disable 所有 csi2→ch link，避免
+  CFE 保留 enabled-but-not-streaming 的旧 channel。
+
+注意：AR0820 4K 的 stop/start 仍受 CFE/DMA 重启问题限制，和本次双路修复
+不是同一个问题。
+
 ### IMX490 模组支持
 
 新增 SG5-IMX490C 系列支持：

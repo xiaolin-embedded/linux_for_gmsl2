@@ -3,9 +3,9 @@
 > 状态：Phase 1（core/ops/desc 分层）、Phase 2（board/link/sensor 描述符拆分、
 > per-link 格式、稀疏 link 映射）、P0 per-link streaming 控制和 AR0820/
 > MAX96717F 支持已实现。IMX390 Link A 单相机 golden test 通过；AR0820 4K
-> 单次冷启动抓图通过，但 CFE/DMA 的 4K 重复 start/stop 仍待修；4 路
-> mixed-link 硬件测试仍待补。本文描述的是**目标框架**；与 SIPL/AIS 对齐的
-> 部分仍按 Roadmap 分阶段补齐。
+> 单次冷启动抓图通过，但 CFE/DMA 的 4K 重复 start/stop 仍待修；双 IMX490
+> Link A/B 同时抓图已通过，4 路 mixed-link 硬件测试仍待补。本文描述的是
+> **目标框架**；与 SIPL/AIS 对齐的部分仍按 Roadmap 分阶段补齐。
 
 ## 1. 目标与非目标
 
@@ -401,6 +401,8 @@ routing，不需要改 core 的 link mask 语义。
   UYVY；4K 重复 start/stop 仍卡在 CFE/DMA 重启，待修；
 - IMX490 2880x1860 已上板验证：Link A、912 Mbps；0x41 模组约 26.4 fps，
   0x62 模组约 14 fps；驱动已支持 0x62 自动迁移；
+- 双 IMX490 Link A/B 同时抓图通过（2880x1860，各 10 帧）；跨 link 失败
+  根因是 pipe mask 只写当前 link，已改为所有 locked link 保持 pipe 使能；
 - 4 路 mixed-link 硬件测试待补。
 
 ### 待完善（按优先级）
@@ -428,9 +430,9 @@ routing，不需要改 core 的 link mask 语义。
 - **Phase 2（基本完成）**：`board_desc/link_desc/sensor_desc` 拆分、稀疏 link
   映射、per-link `set_fmt/streaming`、`max96717` ser ops、`ar0820` desc/ops
   已完成并通过编译；剩余 AR0820 4K 上板抓图。
-- **Phase 3**：修 CFE/DMA 的 4K 重复 start/stop；4 路 mixed-link 验证；
-  link loss/hot-plug 恢复；per-link 错误计数/debugfs；FE pad streams；
-  抓图 CLI 已支持 `-s WxH`。
+- **Phase 3**：修 CFE/DMA 的 4K 重复 start/stop；4 路 mixed-link
+  （含 AR0820 + IMX490）验证；link loss/hot-plug 恢复；per-link
+  错误计数/debugfs；FE pad streams；抓图 CLI 已支持 `-s WxH`。
 - **Phase 4（可选）**：DT YAML binding；V4L2 streams/routing；V4L2 controls；
   与 mainline `maxim-serdes` 对齐；CI/长跑/故障注入。
 

@@ -261,6 +261,21 @@ disable streams pad=0
 - 停止后再次启动正常；
 - 4 路 mixed-link 独立启停逻辑已实现，但当前只有一颗相机，尚未做四路硬件矩阵测试。
 
+双 IMX490 实测（2026-11-21，Link A/B）：
+
+```text
+gmsl_links = 1 1 0 0
+serializer: 0x41, 0x42
+ISP @0x6d ACK
+顺序 A→B 抓图成功
+同时 csi2_ch0/ch1 各 10 帧成功
+2880x1860 UYVY
+```
+
+两颗模组一颗 serializer 默认 0x62、一颗在 0x41；驱动自动迁移/分配地址。
+跨 link 顺序抓图要求所有 locked link 的 pipe 保持使能，否则先启动的一路会
+把另一颗相机的 ISP 停掉。
+
 IMX490 实测（2026-11-21，Link A）：
 
 ```text
@@ -309,8 +324,9 @@ CFE link rate: 1600 Mbps
 - serializer 的 0x007b~0x00ab 寄存器组在 Link A 上回读仍是默认值
   （0x10/0x00），说明这组写在该模组上可能是只读/保留的；实际视频路由由
   MAX96724 的 pipe/VC 寄存器和 serializer 的 0x0318/0x0311/0x0331 完成。
-- 多路 link 的独立启停已实现并编译通过，但只完成了 Link A 单相机实测；
-  4 路同时出流、单路停止/重启和缺失 link 的错误隔离需要四相机板验证。
+- 双 IMX490 的 Link A/B 同时抓图已通过；单路停止/重启和 4 路 mixed-link
+  （IMX490 + AR0820）仍需继续验证。
+- 相机模组可能为 90° 安装，`-r` 只做 180°；需要应用侧再旋转。
 - AR0820 4K 单次冷启动抓图通过，但停止后第二次启动只收到约 4 个 buffer；
   CFE/DMA 的 4K stop/start 重启路径仍需修复，期间可用单次抓图或保持连续流。
 - IMX490 已上板验证：Link A locked、serializer `0x91`、ISP `0x6d`，
