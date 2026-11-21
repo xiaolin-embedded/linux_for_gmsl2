@@ -6,13 +6,10 @@ SG2-IMX390C-5200-GMSL2 相机。
 
 ## 分支说明
 
-- `master`（默认）：只保留 SG2-IMX390C-5200-GMSL2 一路相机，包含驱动、
-  overlay、抓图脚本和本文档。后续新增相机模组直接在此分支追加提交。
-- `max96724-framework`：Phase 1/2 分层重构与 board/link 描述符分支（当前分支）。
-  模块名、compatible、overlay、寄存器序列与 master 保持一致，上板 golden test
-  已通过。
-- `vendor-full-port`：厂商 14 个 `z_xcdes*` 驱动的完整移植版本，保留作参考；
-  本次 IMX390 最小版本不依赖它。
+- `master`（默认，唯一开发分支）：包含 SG2-IMX390C 最小驱动、Phase 1/2
+  分层框架、board/link 描述符和 `gmsl-reg` 工具。后续修改直接提交到 master。
+- `vendor-full-port`：厂商 14 个 `z_xcdes*` 驱动的完整移植版本，保留作历史
+  参考；本次 IMX390 最小版本不依赖它。
 
 ## 基线
 
@@ -42,7 +39,7 @@ Documentation/gmsl/patches/rpi-6.18.y-max96724-imx390.diff
 Documentation/gmsl/config.txt.example
 ```
 
-## 分层结构（max96724-framework）
+## 分层结构
 
 - `gmsl-core.c/.h`：`gmsl_dev`/`gmsl_link` 状态、I2C 地址切换与重试、
   `gmsl_load_regs`、deser/ser/sensor ops 调度、descriptor 初始化。
