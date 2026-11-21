@@ -34,6 +34,8 @@ drivers/media/i2c/gmsl-imx390.c/.h
 drivers/media/i2c/gmsl-desc.c/.h
 arch/arm/boot/dts/overlays/max96724-imx390-overlay.dts
 tools/gmsl/gmsl-capture.sh
+tools/gmsl/gmsl-reg.c
+tools/gmsl/README.md
 Documentation/gmsl/CHANGELOG.md
 Documentation/gmsl/patches/rpi-6.18.y-max96724-imx390.patch
 Documentation/gmsl/patches/rpi-6.18.y-max96724-imx390.diff
@@ -143,6 +145,39 @@ max96724-imx390: probe success!
 
 依赖：`v4l-utils`，PNG/统计部分需要 `ffmpeg` 和 `python3`。
 
+## 寄存器调试
+
+`tools/gmsl/gmsl-reg.c` 是类似 `cci_debug` 的用户态 I2C 工具，不依赖
+`i2c-tools`，可直接读写：
+
+| 目标 | 地址 | 说明 |
+|---|---|---|
+| 解串器 | `0x27` | MAX96724 |
+| 加串器 | `0x41 + link` | MAX9295A；驱动 probe 后 Link A 为 `0x41` |
+| ISP | `0x6d` | GW5200（8-bit `0xDA`） |
+| EEPROM | `0x51` | 模组 EEPROM（8-bit `0xA2`） |
+| Sensor | `0x21` | IMX390（8-bit `0x42`）；被 GW5200 挡住，不能直读 |
+
+SG2-IMX390C 的实际链路是
+`IMX390(0x21) -> GW5200 ISP(0x6d) -> MAX9295A(0x41) -> MAX96724(0x27)`，
+所以 IMX390 寄存器默认不在 GMSL I2C 总线上；工具保留 `sensor` 别名，供直连
+sensor 的模组使用。
+
+```bash
+cd tools/gmsl && make
+./gmsl-reg detect
+./gmsl-reg scan
+./gmsl-reg read des 0x0000
+./gmsl-reg read ser 0x000d
+./gmsl-reg dump ser 0x0300 0x033f
+./gmsl-reg read isp 0x0000 8
+./gmsl-reg dump eeprom 0x0000 0x003f
+./gmsl-reg -i
+```
+
+写寄存器会绕过驱动互斥，出流时只建议读；详细说明见
+[tools/gmsl/README.md](tools/gmsl/README.md)。
+
 ## 已验证结果
 
 在 RPi 5 + MAX96724 + MAX9295A + SG2-IMX390C-5200-GMSL2 上实测：
@@ -179,6 +214,9 @@ png: gmsl-test.png (rotated 180)
 - 驱动是 SG2-IMX390C-5200-GMSL2 专用单体驱动，分辨率/格式/30fps 和寄存器
   序列硬编码；不是通用 V4L2 sensor/serializer 驱动。
 - 没有实现曝光/增益/翻转等 V4L2 控制，模组 AE 自动工作。
+- SG2-IMX390C 的 IMX390 位于 GW5200 ISP 之后，默认不能通过 GMSL I2C 直接
+  读写 sensor 寄存器；可访问 ISP `0x6d`，sensor 直读需要 ISP 厂商提供
+  pass-through/寄存器资料。
 - serializer 的 0x007b~0x00ab 寄存器组在 Link A 上回读仍是默认值
   （0x10/0x00），说明这组写在该模组上可能是只读/保留的；实际视频路由由
   MAX96724 的 pipe/VC 寄存器和 serializer 的 0x0318/0x0311/0x0331 完成。

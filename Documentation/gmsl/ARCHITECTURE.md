@@ -389,6 +389,7 @@ s_stream(pad, off):
 | P0 | `s_stream` 仍启所有 locked link | 不能按 pad 独立控制 | 改为 per-link mask（Phase 3） |
 | P1 | 无 link loss/hot-plug 恢复 | 拔线/复位后不能自动恢复 | 加 delayed work/错误计数 |
 | P1 | 无 per-link 错误计数/debugfs | 现场定位困难 | 加 sysfs/debugfs |
+| P1 | 模组拓扑未建模（IMX390 在 GW5200 ISP 后） | sensor 寄存器不能直读 | 增加 module/ISP desc 和 ISP pass-through |
 | P1 | power/POC 顺序仍在 V4L2 层 | 多板/多模组不好复用 | 移到 board ops |
 | P1 | 抓图脚本写死 1920x1080 UYVY | AR0820 4K 不能直接用 | 加 width/height/format 参数 |
 | P1 | DT 无 YAML binding、仍单 sensor 节点 | 与 SIPL/AIS 目标不一致 | 加 binding + per-link endpoint |
@@ -428,6 +429,7 @@ drivers/media/i2c/gmsl/
 tools/gmsl/
   gmsl-camera.c
   gmsl-capture.sh
+  gmsl-reg.c
 Documentation/gmsl/
   ARCHITECTURE.md
   CHANGELOG.md

@@ -19,6 +19,28 @@
 - probe 的 match data 从 sensor desc 改为 board desc，模块名/compatible/overlay
   保持不变。
 
+### 用户态寄存器工具 gmsl-reg
+
+新增 `tools/gmsl/gmsl-reg.c` 和 `tools/gmsl/README.md`，类似 `cci_debug`，
+不依赖 `i2c-tools`，通过 `/dev/i2c-N` 提供：
+
+- `detect`：探测解串器、加串器、ISP、EEPROM、sensor；
+- `scan [start] [end]`：扫描 I2C 地址；
+- `read/write/dump`：16 位寄存器地址、8 位数据，支持连续读取和 dump；
+- `links`：显示 GMSL link lock 和 `0x0006` 路由掩码；
+- 交互 shell。
+
+板级确认的 SG2-IMX390C 拓扑：
+
+```text
+IMX390(0x21) -> GW5200 ISP(0x6d) -> MAX9295A(0x41) -> MAX96724(0x27)
+EEPROM: 0x51
+```
+
+`detect` 实测可访问 `0x27(id=0x4e)`、`0x41(id=0x91)`、`0x6d`、`0x51`；
+IMX390 的 `0x21` 被 GW5200 挡在本地 I2C 后面，默认不能直读。工具保留
+`sensor` 别名供直连 sensor 的模组使用，并在 README 中记录该限制。
+
 ### 上板验证
 
 - 首次启动：Link A 锁定，`gmsl_links = 1 0 0 0`，serializer detected。
@@ -45,6 +67,9 @@ drivers/media/i2c/gmsl-v4l2.c
 Documentation/gmsl/ARCHITECTURE.md
 Documentation/gmsl/CHANGELOG.md
 GMSL_MAX96724_IMX390.md
+tools/gmsl/Makefile
+tools/gmsl/gmsl-reg.c
+tools/gmsl/README.md
 ```
 
 ## 2026-11-17
