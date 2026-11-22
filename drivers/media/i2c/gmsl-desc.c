@@ -31,6 +31,10 @@
 /* ISX031 is directly visible on the serializer pass-through bus. */
 #define ISX031_SENSOR_ADDR	0x1a
 
+/* SG-2M-120A-820-5300-G2 is behind the module ISP, like AR0820. */
+#define SG2M_820_SENSOR_ADDR	0x36
+#define SG2M820_DES_ADDR		0x27
+
 static const struct gmsl_sensor_desc imx390_desc = {
 	.compatible = "sony,imx390",
 	.name = "imx390",
@@ -61,6 +65,16 @@ static const struct gmsl_sensor_desc ar0820_desc = {
 	.start_len = 0,
 	.stop = NULL,
 	.stop_len = 0,
+};
+
+static const struct gmsl_sensor_desc sg2m_820_desc = {
+	.compatible = "sensing,sg2m-820",
+	.name = "sg2m-820",
+	.width = 1920,
+	.height = 1080,
+	.mbus_code = MEDIA_BUS_FMT_UYVY8_1X16,
+	.csi_dt = 0x1e,
+	.sensor_ops = &ar0820_sensor_ops,
 };
 
 static const struct gmsl_sensor_desc imx490_desc = {
@@ -187,4 +201,64 @@ const struct gmsl_board_desc max96724_isx031_board = {
 	.phy_clk = 0x25,
 	.three_gbps = true,
 	.skip_frame_sync = true,
+};
+
+static const struct gmsl_link_desc max96724_sg2m820_links[] = {
+	{
+		.index = 0,
+		.sensor = &sg2m_820_desc,
+		.ser_ops = &gmsl_ser_auto_ops,
+		.sensor_addr = SG2M_820_SENSOR_ADDR,
+		.num_lanes = 4,
+		.link_freq = 456000000,
+	},
+};
+
+static const struct gmsl_reg_value sg2m820_fsync_des[] = {
+	{ 0x04a0, 0x00 },
+	{ 0x04a2, 0x00 },
+	{ 0x04a5, 0x35 },
+	{ 0x04a6, 0xb7 },
+	{ 0x04a7, 0x0c },
+	{ 0x04af, 0xcf },
+	{ 0x04b1, 0x40 },
+};
+
+static const struct gmsl_reg_value sg2m820_fsync_ser[] = {
+	{ 0x02d6, 0x84 },
+	{ 0x02d7, 0xa0 },
+	{ 0x02d8, 0x08 },
+};
+
+static int sg2m820_fsync_init(struct gmsl_link *link)
+{
+	struct gmsl_dev *gmsl = link->dev;
+	int ret;
+
+	ret = gmsl_load_regs(gmsl, SG2M820_DES_ADDR, sg2m820_fsync_des,
+			     ARRAY_SIZE(sg2m820_fsync_des));
+	if (ret)
+		return ret;
+
+	ret = gmsl_write_addr(gmsl, SG2M820_DES_ADDR,
+			      0x0b08 + link->index * 0x100, 0x10);
+	if (ret)
+		return ret;
+
+	ret = gmsl_load_regs(gmsl, link->ser_addr, sg2m820_fsync_ser,
+			     ARRAY_SIZE(sg2m820_fsync_ser));
+	if (ret)
+		return ret;
+
+	mdelay(20);
+	return 0;
+}
+
+const struct gmsl_board_desc max96724_sg2m820_board = {
+	.compatible = "zuojisi,max96724-sg2m820",
+	.des_ops = &max96724_des_ops,
+	.num_links = ARRAY_SIZE(max96724_sg2m820_links),
+	.links = max96724_sg2m820_links,
+	.skip_frame_sync = true,
+	.fsync_init = sg2m820_fsync_init,
 };

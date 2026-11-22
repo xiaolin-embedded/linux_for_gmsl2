@@ -3,7 +3,7 @@
 > 版本：2026-11-22
 > 适用内核：`raspberrypi/linux` `rpi-6.18.y`，6.18.62，运行版本 `6.18.62-v8-16k+`
 > 目标硬件：Raspberry Pi 5 Model B Rev 1.1 + MAX96724 四路 GMSL2 解串板
-> 已支持模组：SG2-IMX390C、SG8-AR0820C、SG5-IMX490C、SG-3M-190A-AA-031（ISX031）
+> 已支持模组：SG2-IMX390C、SG8-AR0820C、SG5-IMX490C、SG-3M-190A-AA-031（ISX031）、SG-2M-120A-820-5300-G2（2MP）
 > 代码位置：`rpi-6.18/linux-rpi-6.18.y`
 > 相关文档：`GMSL_MAX96724_IMX390.md`、`Documentation/gmsl/ARCHITECTURE.md`、`Documentation/gmsl/CHANGELOG.md`、`tools/gmsl/README.md`
 
@@ -385,6 +385,7 @@ struct gmsl_board_desc {
     u8 phy_clk;
     bool three_gbps;
     bool skip_frame_sync;
+    int (*fsync_init)(struct gmsl_link *link); /* 可选，开流前配置 FSYNC */
 };
 
 struct gmsl_link_desc {
@@ -477,6 +478,7 @@ disable:
 | `max96724_imx490_board`（5300 系列） | `zuojisi,max96724-imx490` | A-D（index 0..3） | IMX490 5300 | 2880x1860 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-imx490` | serializer 0x41、EEPROM 0x32、约 26.4 fps |
 | `max96724_imx490_board`（5400 系列） | `zuojisi,max96724-imx490` | A-D（index 0..3） | IMX490 5400 | 2880x1860 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-imx490` | serializer 0x62→0x41、EEPROM 0x51 无响应、约 14 fps |
 | `max96724_isx031_board` | `zuojisi,max96724-isx031` | A | ISX031 | 1920x1536 UYVY | MAX96717F | 288 MHz / 576 Mbps | `max96724-isx031` | Link A 通过（3 Gbps） |
+| `max96724_sg2m820_board` | `zuojisi,max96724-sg2m820` | A | SG-2M-120A-820-5300-G2 | 1920x1080 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-sg2m820` | 30 帧 ×2 通过（内部 30Hz FSYNC） |
 
 > IMX490 不是单一配置。当前实测的两颗都是 **MAX9295A / 6 Gbps**，但一个是
 > 5300 系列配置（0x41/EEPROM 0x32/约 26.4 fps），另一个是 5400 系列配置
@@ -512,6 +514,56 @@ serializer 出厂地址、EEPROM/固件配置和帧率存在差异。
   3 Gbps、`three_gbps=true`、`phy_clk=0x25` 的路径处理；
 - 当前 `max96724_imx490_board` 的 4 个 link 描述仍都指向 IMX490；Link A/B
   已验证，4 路同时尚未验证。
+
+### 4.6.2 SG-2M-120A-820-5300-G2 2MP 模组
+
+`SG-2M-120A-820-5300-G2` 不是 4K AR0820 配置，实测输出为 1920×1080
+2MP：
+
+| 项目 | 实测值 |
+|---|---|
+| 输出 | 1920×1080 UYVY |
+| Serializer | MAX9295A，DEV_ID `0x91`，probe 后 `0x41` |
+| ISP | GW5300，`0x6d` |
+| EEPROM | `0x51` 有响应 |
+| GMSL | 6 Gbps |
+| CSI-2 / CFE | 456 MHz / 912 Mbps |
+| 触发 | 外部 FSYNC；由 MAX96724 内部 30Hz 发生器提供 |
+| 验证 | 30 帧连续抓图通过；第二次 start/stop 仍通过 |
+
+调试结论：
+
+- 直接用 4K AR0820 board/overlay 只能收到少量帧后停住，不能作为该模组配置；
+- 使用 1920×1080 管线并让 board 执行 `frame_sync` 时，只能收到 3 帧左右，
+  之后 ISP 等待 FSYNC，packet counter 不再增长；
+- `skip_frame_sync=true` 后完全不启动，进一步确认它依赖 FSYNC；
+- 配置 MAX96724 内部 30Hz FSYNC + MAX9295A MFP8 后，连续 30 帧可稳定输出。
+
+内部 FSYNC 关键寄存器：
+
+| 器件 | 寄存器 | 值 |
+|---|---|---|
+| MAX96724 | `0x04a0` | `0x00` |
+| MAX96724 | `0x04a2` | `0x00` |
+| MAX96724 | `0x04a5` | `0x35` |
+| MAX96724 | `0x04a6` | `0xb7` |
+| MAX96724 | `0x04a7` | `0x0c` |
+| MAX96724 | `0x04af` | `0xcf` |
+| MAX96724 | `0x04b1` | `0x40` |
+| MAX96724 | `0x0b08 + link*0x100` | `0x10`（对应 link 的 FSYNC TX enable） |
+| MAX9295A | `0x02d6` | `0x84` |
+| MAX9295A | `0x02d7` | `0xa0` |
+| MAX9295A | `0x02d8` | `0x08` |
+
+这些配置由 board desc 的 `fsync_init` 回调在每次开流前写入，因此不依赖
+用户态手工 `gmsl-reg`，重启后也能恢复。
+
+新增资源：
+
+- board desc：`max96724_sg2m820_board`；
+- compatible：`zuojisi,max96724-sg2m820`；
+- overlay：`max96724-sg2m820`；
+- sensor desc：`sg2m_820_desc`，1920×1080 UYVY，ISP 在 `0x6d`。
 
 ### 4.7 已知限制
 
@@ -1408,6 +1460,7 @@ CFE 的 4 个 csi2 通道各有 sink/source pad，`csi2_pad_set_fmt()` 是 per-p
 | IMX490 5400 ×1 | 2880x1860 | 通过 |
 | IMX490 5300 + 5400（A/B） | 双路顺序 + 同时 | 通过 |
 | ISX031 ×1（3 Gbps） | 1920x1536 | 通过 |
+| SG2M-820 ×1 | 1920x1080，内部 30Hz FSYNC | 30 帧 ×2 通过 |
 | IMX490 ×4 | 4 路同型号 | 未实测 |
 | IMX390 + AR0820 + IMX490 + ISX031 | 4 路混插 | 未实现（全局 rate 冲突） |
 | 不同分辨率同时出流 | CFE 多格式 | 需额外验证 |
@@ -2426,14 +2479,29 @@ ISX031 3 Gbps：
 - `max96724_isx031_board`：3 Gbps、`phy_clk=0x25`、`skip_frame_sync=true`；
 - 根因：MAX96724 默认 6 Gbps，MAX96717F 最高 3 Gbps；3 Gbps 且 link enable 后 `0x001a` bit3 才置 1；CFE 576 Mbps 下 PHY clock 改 0x25 后正常出图。
 
+SG-2M-120A-820-5300-G2：
+
+- 新增 `sg2m_820_desc`、`max96724_sg2m820_board`、`max96724-sg2m820`
+  overlay；
+- 输出 1920×1080 UYVY，MAX9295A `0x91`，ISP `0x6d`，6 Gbps，
+  CFE 912 Mbps；
+- 首次用 4K AR0820 配置只能收到 3~5 帧；改 1080p 后仍需 FSYNC；
+- 新增 board `fsync_init` 回调：开流前配置 MAX96724 内部 30Hz FSYNC
+  （`0x4a0/0x4a2/0x4a5-0x4a7/0x4af/0x4b1`）、对应 link 的 FSYNC TX
+  enable（`0x0b08 + link*0x100 = 0x10`）和 MAX9295A MFP8
+  （`0x02d6/0x02d7/0x02d8`）；
+- 修复后 30 帧连续抓图通过，第二次 start/stop 也通过。
+
 ### 13.5 当前状态（2026-11-22）
 
 已实现：
 
 - 分层框架、board/link/sensor 描述符、per-link 格式/streaming；
-- IMX390/AR0820/IMX490/ISX031 四种模组；
+- IMX390/AR0820/IMX490/ISX031/SG2M-820 五种模组；
 - MAX9295A/MAX96717/MAX96717F 自动识别和 0x62 地址迁移；
-- 单 link、双 IMX490、AR0820 单次 4K、ISX031 3 Gbps 上板验证；
+- 单 link、双 IMX490、AR0820 单次 4K、ISX031 3 Gbps、SG2M-820
+  30 帧 ×2 上板验证；
+- MAX96724 内部 30Hz FSYNC + MAX9295A MFP8 的 board `fsync_init` 机制；
 - `gmsl-capture.sh`、`gmsl-reg`、`media-ctl`/`v4l2-ctl` 调试链路。
 
 待完成：
@@ -2549,6 +2617,7 @@ max96724_imx390 11-0036: max96724-imx390: disable streams pad=0
 - Link A AR0820 的真实 probe、I2C、寄存器和 4K 抓图日志；
 - “link1”与 `gmsl_links` 的对应关系；
 - CFE 1600Mbps warning 的实际观察；
+- SG2M-820 2MP 专用 board/overlay 和内部 30Hz FSYNC 修复；
 - 最终文档的统一入口和已知限制。
 
 仍未完成、不能声称已经支持的内容：
@@ -2558,7 +2627,57 @@ max96724_imx390 11-0036: max96724-imx390: disable streams pad=0
 - 不同 CSI-2 rate/port 的四路异构；
 - 外部 trigger/多相机同步；
 - AR0820 4K 重复 start/stop；
-- 录制 MP4 命令的最终上板复测（本次只验证了 4K 抓图/PNG）。
+- SG2M-820 多路/其它 2MP 变体矩阵；
+- 录制 MP4 命令的最终上板复测（本次只验证了抓图/PNG）。
+
+### 13.8 2026-11-22 补充：SG-2M-120A-820-5300-G2 修复日志
+
+测试背景：
+
+- 模组：`SG-2M-120A-820-5300-G2`；
+- 实测 Link A，serializer MAX9295A `0x91`，ISP `0x6d`；
+- 实际输出 1920×1080，不是 4K；
+- 专用配置：`dtoverlay=max96724-sg2m820`。
+
+第一次尝试：
+
+- 用 AR0820 4K overlay/board：4K 只能收到 3~5 帧，PNG 统计异常；
+- 改用 1920×1080/456MHz 后：`-n 1` 和 `-n 3` 成功，`-n 5` 收到 3~4 帧后停流；
+- 停流时 serializer PCLK=1、des video_lock=1，但 CSI2 packet 计数不再增长；
+- `skip_frame_sync=true` 时完全 0 帧，说明模组依赖 FSYNC。
+
+修复方法：
+
+- board 增加 `fsync_init` 回调；
+- 每次开流前写 MAX96724 内部 30Hz FSYNC；
+- 启用对应 link 的 FSYNC TX；
+- 配置 MAX9295A MFP8 接收 FSYNC；
+- 详见 4.6.2 的寄存器表。
+
+修复结果：
+
+```text
+gmsl_links = 1 0 0 0
+serializer 0x41, DEV_ID 0x91
+ISP 0x6d
+CFE: Using a link rate of 912 Mbps
+capture: 30 frames OK
+second start/stop: 30 frames OK
+PNG: 1920x1080
+```
+
+验证图：
+
+```text
+/home/zaiwei/RaspberryPi5_xc_cameras_20260822/kernel/sg2m-30b.png
+```
+
+注意：
+
+- 这是 2MP 模组，不应再使用 AR0820 4K overlay；
+- 内部 FSYNC 的 30Hz 值适用于本次模组；其他 2MP 变体需要重新确认
+  FSYNC 源和 MFP；
+- 使用专用 overlay 后，板子启动时会自动配置，不依赖手工 `gmsl-reg`。
 
 ---
 

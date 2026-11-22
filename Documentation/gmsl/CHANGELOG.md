@@ -1,5 +1,50 @@
 # 修改记录
 
+## 2026-11-22
+
+### SG-2M-120A-820-5300-G2 2MP 支持
+
+新增 2MP GMSL 模组支持：
+
+- 实测输出 1920x1080 UYVY，MAX9295A（0x91）、ISP 0x6d、6Gbps；
+- 新增 `sg2m_820_desc`、`max96724_sg2m820_board` 和
+  `max96724-sg2m820` overlay，CFE 912Mbps；
+- 该模组不能使用 AR0820 4K overlay；4K 配置只能收到少量帧后停流；
+- 模组依赖 FSYNC：只跑原有 frame-sync 序列时约 3 帧后停止，
+  `skip_frame_sync=true` 时完全不启动。
+
+新增 board `fsync_init` 回调，开流前自动配置：
+
+- MAX96724 内部 30Hz FSYNC：
+  `0x04a0=0x00`、`0x04a2=0x00`、`0x04a5=0x35`、
+  `0x04a6=0xb7`、`0x04a7=0x0c`、`0x04af=0xcf`、
+  `0x04b1=0x40`；
+- 对应 link 的 FSYNC TX enable：
+  `0x0b08 + link*0x100 = 0x10`；
+- MAX9295A MFP8：`0x02d6=0x84`、`0x02d7=0xa0`、
+  `0x02d8=0x08`。
+
+上板结果：
+
+- Link A，`gmsl_links=1 0 0 0`；
+- 1920x1080，30 帧连续抓图通过；
+- 第二次 start/stop 再抓 30 帧仍通过；
+- 停止手工 `gmsl-reg` 配置后，驱动开流时自动恢复 FSYNC。
+
+变更文件：
+
+```text
+drivers/media/i2c/gmsl-core.c
+drivers/media/i2c/gmsl-core.h
+drivers/media/i2c/gmsl-desc.c
+drivers/media/i2c/gmsl-desc.h
+drivers/media/i2c/gmsl-v4l2.c
+arch/arm/boot/dts/overlays/Makefile
+arch/arm/boot/dts/overlays/max96724-sg2m820-overlay.dts
+Documentation/gmsl/CHANGELOG.md
+Documentation/gmsl/GMSL_RPI5_COMPLETE_GUIDE_CN.md
+```
+
 ## 2026-11-21
 
 ### ISX031 3Gbps 模组支持

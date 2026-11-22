@@ -336,6 +336,12 @@ int gmsl_core_s_stream(struct gmsl_dev *gmsl, u8 link_mask, bool enable)
 			if (!link->desc || !link->desc->sensor_ops->start_stream)
 				continue;
 
+			if (gmsl->board && gmsl->board->fsync_init) {
+				ret = gmsl->board->fsync_init(link);
+				if (ret)
+					goto rollback;
+			}
+
 			ret = link->desc->sensor_ops->start_stream(link, true);
 			if (ret)
 				goto rollback;

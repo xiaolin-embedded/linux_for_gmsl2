@@ -80,6 +80,7 @@ struct gmsl_board_desc {
 	u8 phy_clk;
 	bool three_gbps;
 	bool skip_frame_sync;
+	int (*fsync_init)(struct gmsl_link *link);
 };
 
 struct gmsl_link {

@@ -393,7 +393,8 @@ dtbo-$(CONFIG_ARCH_BCM2835) += \
 	max96724-ar0820.dtbo \
 	max96724-imx490.dtbo \
 	max96724-imx390.dtbo \
-	max96724-isx031.dtbo
+	max96724-isx031.dtbo \
+	max96724-sg2m820.dtbo
 
 targets += dtbs dtbs_install
 targets += $(dtbo-y)
