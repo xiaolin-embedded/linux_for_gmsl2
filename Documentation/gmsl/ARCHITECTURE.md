@@ -1,5 +1,8 @@
 # GMSL Camera Framework Design
 
+> 完整的中文实践指南（基础、构建、overlay、4-link、调试、抓图/录制、ISX031 复盘）见
+> [GMSL_RPI5_COMPLETE_GUIDE_CN.md](GMSL_RPI5_COMPLETE_GUIDE_CN.md)。
+
 > 状态：Phase 1（core/ops/desc 分层）、Phase 2（board/link/sensor 描述符拆分、
 > per-link 格式、稀疏 link 映射）、P0 per-link streaming 控制和 AR0820/
 > MAX96717F 支持已实现。IMX390 Link A 单相机 golden test 通过；AR0820 4K
