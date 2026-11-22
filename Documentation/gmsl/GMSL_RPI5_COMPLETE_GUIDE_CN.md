@@ -474,8 +474,44 @@ disable:
 |---|---|---|---|---|---|---|---|---|
 | `max96724_imx390_board` | `zuojisi,max96724-imx390` | A（index 0） | IMX390 | 1920x1080 UYVY | MAX9295A | 456 MHz / 912 Mbps | `max96724-imx390` | 已上板 |
 | `max96724_ar0820_board` | `zuojisi,max96724-ar0820` | A | AR0820 | 3840x2160 UYVY | 自动（实测 MAX9295A） | 800 MHz / 1600 Mbps | `max96724-ar0820` | 单次冷启动 4K 通过；重复 start/stop 待修 |
-| `max96724_imx490_board` | `zuojisi,max96724-imx490` | A-D（index 0..3） | IMX490 | 2880x1860 UYVY | 自动 | 456 MHz / 912 Mbps | `max96724-imx490` | Link A/B 双路通过；4 路未实测 |
+| `max96724_imx490_board`（5300 系列） | `zuojisi,max96724-imx490` | A-D（index 0..3） | IMX490 5300 | 2880x1860 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-imx490` | serializer 0x41、EEPROM 0x32、约 26.4 fps |
+| `max96724_imx490_board`（5400 系列） | `zuojisi,max96724-imx490` | A-D（index 0..3） | IMX490 5400 | 2880x1860 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-imx490` | serializer 0x62→0x41、EEPROM 0x51 无响应、约 14 fps |
 | `max96724_isx031_board` | `zuojisi,max96724-isx031` | A | ISX031 | 1920x1536 UYVY | MAX96717F | 288 MHz / 576 Mbps | `max96724-isx031` | Link A 通过（3 Gbps） |
+
+> IMX490 不是单一配置。当前实测的两颗都是 **MAX9295A / 6 Gbps**，但一个是
+> 5300 系列配置（0x41/EEPROM 0x32/约 26.4 fps），另一个是 5400 系列配置
+> （0x62/EEPROM 0x51 无响应/约 14 fps）。详细差异见 4.6.1。
+
+### 4.6.1 IMX490 5300/5400 两颗模组差异
+
+当前仓库实际验证过两颗 IMX490。它们不是“3G 与 6G”的区别，而是模组版本、
+serializer 出厂地址、EEPROM/固件配置和帧率存在差异。
+
+| 项目 | IMX490 5300 系列（实测 0x41 模组） | IMX490 5400 系列（实测 0x62 模组） |
+|---|---|---|
+| Sensor | Sony IMX490，5.44MP | Sony IMX490，5.44MP |
+| 分辨率/格式 | 2880x1860 UYVY | 2880x1860 UYVY |
+| ISP | 模组外置 ISP，`0x6d` | 模组外置 ISP，`0x6d` |
+| Serializer | MAX9295A，DEV_ID `0x91` | MAX9295A，DEV_ID `0x91` |
+| 出厂地址 | `0x41` | `0x62` |
+| 驱动迁移 | 已在 `0x41` | 探测 `0x62` 后迁移到 `0x41`；不接受迁移则保留 `0x62` |
+| EEPROM | `0x32` 可读 | `0x51` 无响应 |
+| GMSL 速率 | **6 Gbps** | **6 Gbps** |
+| overlay | `max96724-imx490`，456 MHz / 912 Mbps | 同左 |
+| 实测帧率 | 约 26.4 fps | 约 14 fps |
+| 备注 | 双 IMX490 A/B 同时抓图通过 | 双 IMX490 A/B 同时抓图通过 |
+
+需要特别注意：
+
+- **两颗都是 6 Gbps**，`0x62` 不是 3 Gbps 版本；
+- `0x62` 只是 MAX9295A 的出厂 I2C 地址，不代表速率或 Sensor 不同；
+- 约 14 fps 与约 26.4 fps 的差异发生在同一套 6 Gbps/912 Mbps 配置下，
+  更可能是 5400 模组的 ISP/固件/工作模式差异，而不是 GMSL link 速率差异；
+- 模组标签与 5300/5400 的对应关系应最终以模组丝印/厂商料号为准；
+- 如果拿到使用 MAX96717F（DEV_ID `0xc8`）的 IMX490 变体，才需要按
+  3 Gbps、`three_gbps=true`、`phy_clk=0x25` 的路径处理；
+- 当前 `max96724_imx490_board` 的 4 个 link 描述仍都指向 IMX490；Link A/B
+  已验证，4 路同时尚未验证。
 
 ### 4.7 已知限制
 
@@ -1368,8 +1404,9 @@ CFE 的 4 个 csi2 通道各有 sink/source pad，`csi2_pad_set_fmt()` 是 per-p
 |---|---|---|
 | IMX390 ×1 | 单 link golden | 通过 |
 | AR0820 ×1 | 4K 单次冷启动 | 通过；重复 start/stop 待修 |
-| IMX490 ×1 | 2880x1860 | 通过 |
-| IMX490 ×2（A/B） | 双路顺序 + 同时 | 通过 |
+| IMX490 5300 ×1 | 2880x1860 | 通过 |
+| IMX490 5400 ×1 | 2880x1860 | 通过 |
+| IMX490 5300 + 5400（A/B） | 双路顺序 + 同时 | 通过 |
 | ISX031 ×1（3 Gbps） | 1920x1536 | 通过 |
 | IMX490 ×4 | 4 路同型号 | 未实测 |
 | IMX390 + AR0820 + IMX490 + ISX031 | 4 路混插 | 未实现（全局 rate 冲突） |
@@ -2085,7 +2122,7 @@ ffmpeg -hide_banner -loglevel warning -y \
 说明：
 
 - `--stream-to=-` 把 raw 写到 stdout；`v4l2-ctl` 的日志走 stderr，不会污染视频数据。
-- `-framerate` 用实测帧率（IMX390 约 28–29 fps，IMX490 约 26 fps，AR0820 约 25 fps）；不匹配会导致播放速度不对。
+- `-framerate` 用实测帧率（IMX390 约 28–29 fps，IMX490 5300 约 26.4 fps、5400 约 14 fps，AR0820 约 25 fps）；不匹配会导致播放速度不对。
 - 先短录 10 秒验证，再延长。
 - Pi 5 没有硬件 H.264 编码器；x264 会占 CPU。4K 建议先录 raw 再离线转码，或降低分辨率/帧率。
 - 如果 ffmpeg 提前退出，`v4l2-ctl` 可能收到 SIGPIPE；用 `-t`/`-frames:v` 限制，或先录 raw。
@@ -2258,7 +2295,7 @@ gmsl-capture.sh -l 1 -n 10
 |---|---|---|
 | link lock | `gmsl_links` | 对应 bit=1 |
 | CFE link rate | `dmesg` | 912/1600/576 Mbps，与 DT 一致 |
-| 帧率 | 抓图时间/帧数 | IMX390 ~28–29 fps；IMX490 ~26 fps；AR0820 ~25 fps |
+| 帧率 | 抓图时间/帧数 | IMX390 ~28–29 fps；IMX490 5300 ~26.4 fps、5400 ~14 fps；AR0820 ~25 fps |
 | 丢帧 | 文件大小 vs `W*H*2*N` | 一致 |
 | I2C 错误 | `dmesg` 中 `error: slave` 的数量 | 0 或极少 |
 | 图像质量 | PNG/YUV 统计 | 不是全黑/全绿/花屏 |
@@ -2359,8 +2396,14 @@ IMX490：
 
 - `gmsl-imx490.c/.h`：2880x1860 UYVY；
 - `max96724_imx490_board`：PHY clock 0x32，Link A-D；
-- 实测：serializer 0x41/0x62 自动迁移、ISP 0x6d、2880x1860、约 26.4 fps（0x62 模组约 14 fps）；
-- 双 IMX490 Link A/B 同时抓图通过（各 10 帧）。
+- 实测两颗模组，两者都是 MAX9295A（DEV_ID `0x91`）、6 Gbps、ISP `0x6d`、
+  2880x1860、456 MHz/912 Mbps；
+- 5300 系列：serializer 出厂 `0x41`，EEPROM `0x32`，约 26.4 fps；
+- 5400 系列：serializer 出厂 `0x62`，驱动迁移到 `0x41`（不接受则保留
+  `0x62`），EEPROM `0x51` 无响应，约 14 fps；
+- 两者帧率差异不是 GMSL 3G/6G 差异；更可能是 ISP/固件/工作模式差异；
+- 双 IMX490（5300 + 5400）Link A/B 同时抓图通过（各 10 帧）；
+- 4 路 IMX490 同时抓图尚未验证。
 
 0x62 地址：
 
