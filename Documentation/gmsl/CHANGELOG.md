@@ -45,6 +45,42 @@ Documentation/gmsl/CHANGELOG.md
 Documentation/gmsl/GMSL_RPI5_COMPLETE_GUIDE_CN.md
 ```
 
+### 8MP AR0820 120A/030A 两颗模组实测
+
+本轮又验证了两颗 8MP AR0820 变体，二者都可以复用现有
+`max96724-ar0820` board/overlay，无需新增驱动代码：
+
+| 模组 | 视场 | 输出 | Serializer / ISP | CFE |
+|---|---|---|---|---|
+| `SG-8M-120A-820-5300-G2` | 120° 广角 | 3840x2160 UYVY | MAX9295A `0x91` / `0x6d` | 1600 Mbps |
+| `SG-8M-030A-0820-5300-G2` | 30° 窄视场 | 3840x2160 UYVY | MAX9295A `0x91` / `0x6d` | 1600 Mbps |
+
+共同结果：
+
+- Link A，`gmsl_links=1 0 0 0`；
+- EEPROM `0x51` 首字节为 `0x17`；
+- 冷启动抓图 10 帧成功；
+- PNG 均为 3840x2160；
+- CFE 会打印 `DPHY: Datarate 1600 Mbps out of range`，但本次抓图成功；
+- AR0820 4K 重复 start/stop 的限制仍然存在，本次只验证冷启动单次抓图。
+
+分模组结果：
+
+- `SG-8M-120A-820-5300-G2`：120° 广角，PNG 15MB，
+  `sg8m-cold.png`；
+- `SG-8M-030A-0820-5300-G2`：约 30° 窄视场，PNG 9.2MB，
+  `sg8m030.png`，画面视角明显更窄。
+
+配置：
+
+```text
+dtoverlay=max96724-ar0820
+```
+
+结论：这两颗模组不需要像 SG2M-820 那样增加内部 FSYNC 配置；直接使用
+AR0820 4K 管线即可。型号中的 `820` 与 `0820` 写法不同，但实测都走
+MAX9295A `0x91` + ISP `0x6d` 的 8MP 路径。
+
 ## 2026-11-21
 
 ### ISX031 3Gbps 模组支持
