@@ -719,11 +719,11 @@ static const struct i2c_device_id gmsl_camera_id[] = {
 MODULE_DEVICE_TABLE(i2c, gmsl_camera_id);
 
 static const struct of_device_id gmsl_camera_dt_ids[] = {
-	{ .compatible = "zuojisi,max96724-imx390", .data = &max96724_imx390_board },
-	{ .compatible = "zuojisi,max96724-ar0820", .data = &max96724_ar0820_board },
-	{ .compatible = "zuojisi,max96724-imx490", .data = &max96724_imx490_board },
-	{ .compatible = "zuojisi,max96724-isx031", .data = &max96724_isx031_board },
-	{ .compatible = "zuojisi,max96724-sg2m820", .data = &max96724_sg2m820_board },
+	{ .compatible = "xiaolin,max96724-imx390", .data = &max96724_imx390_board },
+	{ .compatible = "xiaolin,max96724-ar0820", .data = &max96724_ar0820_board },
+	{ .compatible = "xiaolin,max96724-imx490", .data = &max96724_imx490_board },
+	{ .compatible = "xiaolin,max96724-isx031", .data = &max96724_isx031_board },
+	{ .compatible = "xiaolin,max96724-sg2m820", .data = &max96724_sg2m820_board },
 	{ /* sentinel */ }
 };
 MODULE_DEVICE_TABLE(of, gmsl_camera_dt_ids);

@@ -117,7 +117,7 @@ static const struct gmsl_link_desc max96724_imx390_links[] = {
 };
 
 const struct gmsl_board_desc max96724_imx390_board = {
-	.compatible = "zuojisi,max96724-imx390",
+	.compatible = "xiaolin,max96724-imx390",
 	.des_ops = &max96724_des_ops,
 	.num_links = ARRAY_SIZE(max96724_imx390_links),
 	.links = max96724_imx390_links,
@@ -135,7 +135,7 @@ static const struct gmsl_link_desc max96724_ar0820_links[] = {
 };
 
 const struct gmsl_board_desc max96724_ar0820_board = {
-	.compatible = "zuojisi,max96724-ar0820",
+	.compatible = "xiaolin,max96724-ar0820",
 	.des_ops = &max96724_des_ops,
 	.num_links = ARRAY_SIZE(max96724_ar0820_links),
 	.links = max96724_ar0820_links,
@@ -179,7 +179,7 @@ static const struct gmsl_link_desc max96724_imx490_links[] = {
 };
 
 const struct gmsl_board_desc max96724_imx490_board = {
-	.compatible = "zuojisi,max96724-imx490",
+	.compatible = "xiaolin,max96724-imx490",
 	.des_ops = &max96724_des_ops,
 	.num_links = ARRAY_SIZE(max96724_imx490_links),
 	.links = max96724_imx490_links,
@@ -198,7 +198,7 @@ static const struct gmsl_link_desc max96724_isx031_links[] = {
 };
 
 const struct gmsl_board_desc max96724_isx031_board = {
-	.compatible = "zuojisi,max96724-isx031",
+	.compatible = "xiaolin,max96724-isx031",
 	.des_ops = &max96724_des_ops,
 	.num_links = ARRAY_SIZE(max96724_isx031_links),
 	.links = max96724_isx031_links,
@@ -259,7 +259,7 @@ static int gmsl_internal_fsync_init(struct gmsl_link *link)
 }
 
 const struct gmsl_board_desc max96724_sg2m820_board = {
-	.compatible = "zuojisi,max96724-sg2m820",
+	.compatible = "xiaolin,max96724-sg2m820",
 	.des_ops = &max96724_des_ops,
 	.num_links = ARRAY_SIZE(max96724_sg2m820_links),
 	.links = max96724_sg2m820_links,

@@ -151,7 +151,7 @@ config.txt
 固件加载 base DTB + overlay
         │
         ▼
-设备树中出现 cam_node@36（compatible = "zuojisi,max96724-imx390"）
+设备树中出现 cam_node@36（compatible = "xiaolin,max96724-imx390"）
         │
         ▼
 I2C 核心创建 i2c client，匹配 max96724_imx390 驱动
@@ -473,12 +473,12 @@ disable:
 
 | board_desc | compatible | link | sensor | 分辨率/格式 | 加串器 | link-freq (CFE) | overlay | 状态 |
 |---|---|---|---|---|---|---|---|---|
-| `max96724_imx390_board` | `zuojisi,max96724-imx390` | A（index 0） | IMX390 | 1920x1080 UYVY | MAX9295A | 456 MHz / 912 Mbps | `max96724-imx390` | 已上板 |
-| `max96724_ar0820_board` | `zuojisi,max96724-ar0820` | A | AR0820 | 3840x2160 UYVY | 自动（实测 MAX9295A） | 800 MHz / 1600 Mbps | `max96724-ar0820` | 单次冷启动 4K 通过；重复 start/stop 待修 |
-| `max96724_imx490_board`（5300 系列） | `zuojisi,max96724-imx490` | A-D（index 0..3） | IMX490 5300 | 2880x1860 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-imx490` | serializer 0x41、EEPROM 0x32、约 26.4 fps |
-| `max96724_imx490_board`（5400 系列） | `zuojisi,max96724-imx490` | A-D（index 0..3） | IMX490 5400 | 2880x1860 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-imx490` | serializer 0x62→0x41、EEPROM 0x51 无响应、约 14 fps |
-| `max96724_isx031_board` | `zuojisi,max96724-isx031` | A | ISX031 | 1920x1536 UYVY | MAX96717F | 288 MHz / 576 Mbps | `max96724-isx031` | Link A 通过（3 Gbps） |
-| `max96724_sg2m820_board` | `zuojisi,max96724-sg2m820` | A | SG-2M-120A-820-5300-G2 | 1920x1080 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-sg2m820` | 30 帧 ×2 通过（内部 30Hz FSYNC） |
+| `max96724_imx390_board` | `xiaolin,max96724-imx390` | A（index 0） | IMX390 | 1920x1080 UYVY | MAX9295A | 456 MHz / 912 Mbps | `max96724-imx390` | 已上板 |
+| `max96724_ar0820_board` | `xiaolin,max96724-ar0820` | A | AR0820 | 3840x2160 UYVY | 自动（实测 MAX9295A） | 800 MHz / 1600 Mbps | `max96724-ar0820` | 单次冷启动 4K 通过；重复 start/stop 待修 |
+| `max96724_imx490_board`（5300 系列） | `xiaolin,max96724-imx490` | A-D（index 0..3） | IMX490 5300 | 2880x1860 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-imx490` | serializer 0x41、EEPROM 0x32、约 26.4 fps |
+| `max96724_imx490_board`（5400 系列） | `xiaolin,max96724-imx490` | A-D（index 0..3） | IMX490 5400 | 2880x1860 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-imx490` | serializer 0x62→0x41、EEPROM 0x51 无响应、约 14 fps |
+| `max96724_isx031_board` | `xiaolin,max96724-isx031` | A | ISX031 | 1920x1536 UYVY | MAX96717F | 288 MHz / 576 Mbps | `max96724-isx031` | Link A 通过（3 Gbps） |
+| `max96724_sg2m820_board` | `xiaolin,max96724-sg2m820` | A | SG-2M-120A-820-5300-G2 | 1920x1080 UYVY | MAX9295A `0x91` | 456 MHz / 912 Mbps | `max96724-sg2m820` | 30 帧 ×2 通过（内部 30Hz FSYNC） |
 
 > IMX490 不是单一配置。当前实测的两颗都是 **MAX9295A / 6 Gbps**，但一个是
 > 5300 系列配置（0x41/EEPROM 0x32/约 26.4 fps），另一个是 5400 系列配置
@@ -561,7 +561,7 @@ serializer 出厂地址、EEPROM/固件配置和帧率存在差异。
 新增资源：
 
 - board desc：`max96724_sg2m820_board`；
-- compatible：`zuojisi,max96724-sg2m820`；
+- compatible：`xiaolin,max96724-sg2m820`；
 - overlay：`max96724-sg2m820`；
 - sensor desc：`sg2m_820_desc`，1920×1080 UYVY，ISP 在 `0x6d`。
 
@@ -918,7 +918,7 @@ overlay 不是独立设备树，它通过 `fragment` 往 base DTB 的指定节�
             status = "okay";
 
             cam_node: imx390@36 {
-                compatible = "zuojisi,max96724-imx390";
+                compatible = "xiaolin,max96724-imx390";
                 reg = <0x36>;
                 status = "ok";
 
@@ -1024,7 +1024,7 @@ overlay 不是独立设备树，它通过 `fragment` 往 base DTB 的指定节�
 | 属性 | 出现在 | 含义 | 本项目取值/注意 |
 |---|---|---|---|
 | `compatible = "brcm,bcm2835"` | overlay 根 | overlay 自身的兼容字符串，RPi overlay 的标准写法 | 不要改 |
-| `compatible = "zuojisi,max96724-imx390"` | `cam_node` | 匹配 `gmsl-v4l2.c` 的 `of_device_id`，决定使用哪个 `board_desc` | 换模组/混插时改这里 |
+| `compatible = "xiaolin,max96724-imx390"` | `cam_node` | 匹配 `gmsl-v4l2.c` 的 `of_device_id`，决定使用哪个 `board_desc` | 换模组/混插时改这里 |
 | `reg = <0x36>` | `cam_node` | I2C client 的绑定地址 | **占位地址**，不是 MAX96724 的真实 0x27；驱动内部固定用 0x27 |
 | `status = "okay"` / `"ok"` | 各节点 | 启用节点 | `ok` 和 `okay` 等价 |
 | `clocks = <&cam1_clk>` | `cam_node` | 相机 xclk 时钟源 | 驱动 `devm_clk_get(dev, "xclk")` |
@@ -1246,7 +1246,7 @@ static const struct gmsl_link_desc max96724_mix_links[] = {
 };
 
 const struct gmsl_board_desc max96724_mix_board = {
-    .compatible = "zuojisi,max96724-mix",
+    .compatible = "xiaolin,max96724-mix",
     .des_ops = &max96724_des_ops,
     .num_links = ARRAY_SIZE(max96724_mix_links),
     .links = max96724_mix_links,
@@ -1271,7 +1271,7 @@ static const struct i2c_device_id gmsl_camera_id[] = {
 
 static const struct of_device_id gmsl_camera_dt_ids[] = {
     /* 现有项... */
-    { .compatible = "zuojisi,max96724-mix", .data = &max96724_mix_board },
+    { .compatible = "xiaolin,max96724-mix", .data = &max96724_mix_board },
     { /* sentinel */ }
 };
 ```
@@ -1282,7 +1282,7 @@ static const struct of_device_id gmsl_camera_dt_ids[] = {
 
 ```dts
 cam_node: gmsl@36 {
-    compatible = "zuojisi,max96724-mix";
+    compatible = "xiaolin,max96724-mix";
     reg = <0x36>;
     status = "ok";
 
@@ -1338,7 +1338,7 @@ dmesg | grep -i max96724
 
 ```dts
 gmsl: gmsl@27 {
-    compatible = "zuojisi,max96724-gmsl";
+    compatible = "xiaolin,max96724-gmsl";
     reg = <0x27>;
 
     ports {
@@ -1688,7 +1688,7 @@ static const struct gmsl_link_desc max96724_foo_links[] = {
 };
 
 const struct gmsl_board_desc max96724_foo_board = {
-    .compatible = "zuojisi,max96724-foo",
+    .compatible = "xiaolin,max96724-foo",
     .des_ops = &max96724_des_ops,
     .num_links = ARRAY_SIZE(max96724_foo_links),
     .links = max96724_foo_links,
@@ -1704,7 +1704,7 @@ const struct gmsl_board_desc max96724_foo_board = {
 ### 9.6 第六步：注册驱动、overlay、Makefile
 
 1. `gmsl-v4l2.c` 的 `i2c_device_id` 和 `of_device_id` 增加新 board；
-2. 新建 `max96724-foo-overlay.dts`，`compatible = "zuojisi,max96724-foo"`，`link-frequencies` 按模组设置；
+2. 新建 `max96724-foo-overlay.dts`，`compatible = "xiaolin,max96724-foo"`，`link-frequencies` 按模组设置；
 3. `arch/arm/boot/dts/overlays/Makefile` 增加 `max96724-foo.dtbo`；
 4. `drivers/media/i2c/Makefile` 的 `max96724_imx390-y` 增加 `gmsl-foo.o`；
 5. 重新编译 `modules dtbs`，部署 `max96724_imx390.ko` + `max96724-foo.dtbo` + `config.txt`；
@@ -2718,7 +2718,7 @@ PNG: 1920x1080
             status = "okay";
 
             cam_node: gmsl@36 {
-                compatible = "zuojisi,max96724-foo";
+                compatible = "xiaolin,max96724-foo";
                 reg = <0x36>;
                 status = "ok";
                 clocks = <&cam1_clk>;

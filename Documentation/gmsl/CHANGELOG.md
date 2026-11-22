@@ -2,6 +2,15 @@
 
 ## 2026-11-22
 
+### 设备树 compatible 前缀重命名
+
+将无明确含义的 `zuojisi,` 前缀统一改为项目组织对应的 `xiaolin,`：
+
+- `zuojisi,max96724-*` -> `xiaolin,max96724-*`；
+- 同步驱动 match table、board descriptor、dtbo overlay 和文档；
+- overlay 文件名与 `config.txt` 中的 `dtoverlay=` 名称不变；
+- 新旧 dtbo/驱动不兼容，升级时需同时替换两者。
+
 ### SG-2M-120A-820-5300-G2 2MP 支持
 
 新增 2MP GMSL 模组支持：
@@ -363,7 +372,7 @@ tools/gmsl/README.md
 保持不变：
 
 - 模块名 `max96724_imx390.ko`（复合模块，源文件已拆分）
-- compatible `zuojisi,max96724-imx390`
+- compatible `xiaolin,max96724-imx390`
 - overlay、config.txt、`gmsl_links` sysfs
 - 所有寄存器序列、延时、link lock/VC 映射和 30fps 行为
 
@@ -427,7 +436,7 @@ MAX96724/MAX9295 驱动。
 | overlay | `arch/arm/boot/dts/overlays/max96724-imx390-overlay.dts` |
 | dtbo | `max96724-imx390.dtbo` |
 | config.txt | `dtoverlay=max96724-imx390` |
-| compatible | `zuojisi,max96724-imx390` |
+| compatible | `xiaolin,max96724-imx390` |
 | sysfs | `/sys/bus/i2c/devices/*/gmsl_links` |
 | 日志前缀 | `max96724-imx390:` |
 | 模块描述 | `MAX96724 + MAX9295A + IMX390 GMSL2 camera driver` |

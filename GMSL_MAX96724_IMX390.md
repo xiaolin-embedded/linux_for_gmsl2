@@ -82,7 +82,7 @@ Documentation/gmsl/config.txt.example
 
 Phase 1 完成 core/ops/desc 分层；Phase 2 完成 board/link/sensor 描述符拆分、
 稀疏 link 映射和 per-link 格式；P0 完成 per-link streaming 控制。模块名
-`max96724_imx390.ko`、compatible `zuojisi,max96724-imx390`、overlay、
+`max96724_imx390.ko`、compatible `xiaolin,max96724-imx390`、overlay、
 config.txt 和寄存器序列保持不变。`W=1` 编译已通过；单 link 上板 golden
 test 已通过：
 

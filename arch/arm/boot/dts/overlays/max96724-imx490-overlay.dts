@@ -39,7 +39,7 @@
 			status = "okay";
 
 			cam_node: imx490@36 {
-				compatible = "zuojisi,max96724-imx490";
+				compatible = "xiaolin,max96724-imx490";
 				reg = <0x36>;
 				status = "ok";
 
